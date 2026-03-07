@@ -72,7 +72,7 @@ jobs:
             echo "environment=prod" >> $GITHUB_OUTPUT
           else
             echo "tag=latest" >> $GITHUB_OUTPUT
-            echo "environment=prod" >> $GITHUB_OUTPUT
+            echo "environment=staging" >> $GITHUB_OUTPUT
           fi
 
       - name: Build and push Docker image
