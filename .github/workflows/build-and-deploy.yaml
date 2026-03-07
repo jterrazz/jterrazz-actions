@@ -31,6 +31,10 @@ on:
         description: Node.js version to install for validation (leave empty to skip)
         default: ''
         type: string
+      package-manager:
+        description: Package manager for dependency caching (npm, pnpm, yarn)
+        default: 'npm'
+        type: string
     secrets:
       INFISICAL_CLIENT_ID:
         required: true
@@ -46,6 +50,7 @@ jobs:
     uses: jterrazz/jterrazz-workflows/.github/workflows/validate.yaml@main
     with:
       node-version: ${{ inputs.node-version }}
+      package-manager: ${{ inputs.package-manager }}
 
   build:
     name: Build and Push

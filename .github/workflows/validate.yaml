@@ -7,6 +7,10 @@ on:
         description: Node.js version to install (leave empty to skip)
         default: ''
         type: string
+      package-manager:
+        description: Package manager for dependency caching (npm, pnpm, yarn)
+        default: 'npm'
+        type: string
 
 jobs:
   validate:
@@ -16,11 +20,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        if: inputs.node-version != '' && inputs.package-manager == 'pnpm'
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         if: inputs.node-version != ''
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
+          cache: ${{ inputs.package-manager }}
 
       - name: Build
         run: make build
