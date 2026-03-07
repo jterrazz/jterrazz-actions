@@ -16,10 +16,16 @@ inputs:
     default: 'prod'
   manifest:
     description: Path to the Helm values manifest
-    default: '.deploy/manifest.yaml'
+    default: '.infrastructure/application.yaml'
   timeout:
     description: Helm deploy timeout
     default: '3m'
+  public-ip:
+    description: Server public IP for DNS records
+    default: '46.224.186.190'
+  tailscale-hostname:
+    description: Tailscale hostname for private DNS records
+    default: 'jterrazz-vps.tail77a797.ts.net'
 
 runs:
   using: composite
@@ -52,6 +58,8 @@ runs:
           --set spec.image=${{ inputs.registry }}/${{ inputs.image-name }}:${{ inputs.tag }} \
           --set registry.username=${{ env.DOCKER_REGISTRY_USERNAME }} \
           --set registry.password=${{ env.DOCKER_REGISTRY_PASSWORD }} \
+          --set infrastructure.publicIp=${{ inputs.public-ip }} \
+          --set infrastructure.tailscaleHostname=${{ inputs.tailscale-hostname }} \
           -n ${{ inputs.environment }}-${{ inputs.image-name }} \
           --create-namespace \
           --wait --timeout ${{ inputs.timeout }} --atomic
