@@ -20,18 +20,23 @@ runs:
       run: |
         ALL_TAGS=$(curl -s -u "${{ env.DOCKER_REGISTRY_USERNAME }}:${{ env.DOCKER_REGISTRY_PASSWORD }}" \
           "https://${{ inputs.registry }}/v2/${{ inputs.image-name }}/tags/list" \
-          | jq -r '.tags[]? // empty')
+          | jq -r '.tags[]? // empty') || true
 
-        KEEP_VTAGS=$(echo "$ALL_TAGS" | grep -E '^v[0-9]' | sort -V | tail -${{ inputs.keep-latest-versions }})
+        if [ -z "$ALL_TAGS" ]; then
+          echo "No tags found, skipping cleanup"
+          exit 0
+        fi
+
+        KEEP_VTAGS=$(echo "$ALL_TAGS" | grep -E '^v[0-9]' | sort -V | tail -${{ inputs.keep-latest-versions }} || true)
 
         for TAG in $ALL_TAGS; do
           [[ "$TAG" == "latest" ]] && continue
-          echo "$KEEP_VTAGS" | grep -qx "$TAG" && continue
+          echo "$KEEP_VTAGS" | grep -qx "$TAG" 2>/dev/null && continue
 
           DIGEST=$(curl -s -I -u "${{ env.DOCKER_REGISTRY_USERNAME }}:${{ env.DOCKER_REGISTRY_PASSWORD }}" \
             -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
             "https://${{ inputs.registry }}/v2/${{ inputs.image-name }}/manifests/$TAG" \
-            | grep -i docker-content-digest | awk '{print $2}' | tr -d '\r')
+            | grep -i docker-content-digest | awk '{print $2}' | tr -d '\r' || true)
 
           if [ -n "$DIGEST" ]; then
             curl -s -X DELETE \
