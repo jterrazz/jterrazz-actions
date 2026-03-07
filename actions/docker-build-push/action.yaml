@@ -1,0 +1,39 @@
+name: Docker Build and Push
+description: Build and push a Docker image to a container registry
+
+inputs:
+  registry:
+    description: Container registry hostname
+    default: 'registry.jterrazz.com'
+  image-name:
+    description: Image name (without registry prefix)
+    required: true
+  tag:
+    description: Image tag
+    required: true
+  context:
+    description: Docker build context path
+    default: '.'
+  dockerfile:
+    description: Path to Dockerfile
+    default: 'Dockerfile'
+  build-args:
+    description: Docker build arguments
+    default: ''
+
+outputs:
+  image:
+    description: Full image reference (registry/name:tag)
+    value: ${{ inputs.registry }}/${{ inputs.image-name }}:${{ inputs.tag }}
+
+runs:
+  using: composite
+  steps:
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ${{ inputs.context }}
+        file: ${{ inputs.dockerfile }}
+        push: true
+        tags: ${{ inputs.registry }}/${{ inputs.image-name }}:${{ inputs.tag }}
+        build-args: ${{ inputs.build-args }}

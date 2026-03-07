@@ -1,0 +1,67 @@
+name: Cleanup Images
+description: Remove old registry tags, run registry garbage collection, and prune node containerd images
+
+inputs:
+  registry:
+    description: Container registry hostname
+    default: 'registry.jterrazz.com'
+  image-name:
+    description: Image name to clean up
+    required: true
+  keep-latest-versions:
+    description: Number of recent v* tags to keep
+    default: '3'
+
+runs:
+  using: composite
+  steps:
+    - name: Clean up old registry tags
+      shell: bash
+      run: |
+        ALL_TAGS=$(curl -s -u "${{ env.DOCKER_REGISTRY_USERNAME }}:${{ env.DOCKER_REGISTRY_PASSWORD }}" \
+          "https://${{ inputs.registry }}/v2/${{ inputs.image-name }}/tags/list" \
+          | jq -r '.tags[]? // empty')
+
+        KEEP_VTAGS=$(echo "$ALL_TAGS" | grep -E '^v[0-9]' | sort -V | tail -${{ inputs.keep-latest-versions }})
+
+        for TAG in $ALL_TAGS; do
+          [[ "$TAG" == "latest" ]] && continue
+          echo "$KEEP_VTAGS" | grep -qx "$TAG" && continue
+
+          DIGEST=$(curl -s -I -u "${{ env.DOCKER_REGISTRY_USERNAME }}:${{ env.DOCKER_REGISTRY_PASSWORD }}" \
+            -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+            "https://${{ inputs.registry }}/v2/${{ inputs.image-name }}/manifests/$TAG" \
+            | grep -i docker-content-digest | awk '{print $2}' | tr -d '\r')
+
+          if [ -n "$DIGEST" ]; then
+            curl -s -X DELETE \
+              -u "${{ env.DOCKER_REGISTRY_USERNAME }}:${{ env.DOCKER_REGISTRY_PASSWORD }}" \
+              "https://${{ inputs.registry }}/v2/${{ inputs.image-name }}/manifests/$DIGEST" || true
+            echo "Deleted: $TAG ($DIGEST)"
+          fi
+        done
+
+    - name: Run registry garbage collection
+      shell: bash
+      run: |
+        kubectl exec -n platform-registry deploy/registry -- \
+          bin/registry garbage-collect /etc/docker/registry/config.yml \
+          --delete-untagged 2>&1 | tail -5 || true
+
+    - name: Prune node containerd images
+      shell: bash
+      run: |
+        kubectl run ctr-prune-$RANDOM --rm -i --restart=Never --image=alpine:latest \
+          --overrides='{
+            "spec": {
+              "hostPID": true,
+              "nodeSelector": {"node-role.kubernetes.io/master": "true"},
+              "tolerations": [{"operator": "Exists"}],
+              "containers": [{
+                "name": "prune",
+                "image": "alpine:latest",
+                "command": ["nsenter", "-t", "1", "-m", "--", "k3s", "ctr", "content", "prune", "references"],
+                "securityContext": {"privileged": true}
+              }]
+            }
+          }' 2>/dev/null || true

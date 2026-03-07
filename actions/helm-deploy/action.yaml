@@ -1,0 +1,55 @@
+name: Helm Deploy
+description: Deploy an application to the Kubernetes cluster via the app Helm chart
+
+inputs:
+  registry:
+    description: Container registry hostname
+    default: 'registry.jterrazz.com'
+  image-name:
+    description: Image name (without registry prefix)
+    required: true
+  tag:
+    description: Image tag to deploy
+    required: true
+  environment:
+    description: Deployment environment (prod, staging)
+    default: 'prod'
+  manifest:
+    description: Path to the Helm values manifest
+    default: '.deploy/manifest.yaml'
+  timeout:
+    description: Helm deploy timeout
+    default: '3m'
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Helm
+      uses: azure/setup-helm@v3
+
+    - name: Setup kubeconfig
+      shell: bash
+      run: |
+        mkdir -p ~/.kube
+        echo "${{ env.KUBECONFIG_BASE64 }}" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+
+    - name: Login to OCI registry
+      shell: bash
+      run: |
+        echo "${{ env.DOCKER_REGISTRY_PASSWORD }}" | helm registry login ${{ inputs.registry }} \
+          --username ${{ env.DOCKER_REGISTRY_USERNAME }} --password-stdin
+
+    - name: Deploy via Helm
+      shell: bash
+      run: |
+        helm upgrade --install ${{ inputs.environment }}-${{ inputs.image-name }} \
+          oci://${{ inputs.registry }}/charts/app \
+          -f ${{ inputs.manifest }} \
+          --set environment=${{ inputs.environment }} \
+          --set spec.image=${{ inputs.registry }}/${{ inputs.image-name }}:${{ inputs.tag }} \
+          --set registry.username=${{ env.DOCKER_REGISTRY_USERNAME }} \
+          --set registry.password=${{ env.DOCKER_REGISTRY_PASSWORD }} \
+          -n ${{ inputs.environment }}-${{ inputs.image-name }} \
+          --create-namespace \
+          --wait --timeout ${{ inputs.timeout }} --atomic

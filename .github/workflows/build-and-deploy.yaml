@@ -1,0 +1,107 @@
+name: Build and Deploy
+
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        description: Image name (without registry prefix)
+        required: true
+        type: string
+      timeout:
+        description: Helm deploy timeout
+        default: '3m'
+        type: string
+      manifest:
+        description: Path to the Helm values manifest
+        default: '.deploy/manifest.yaml'
+        type: string
+      dockerfile:
+        description: Path to Dockerfile
+        default: 'Dockerfile'
+        type: string
+      build-args:
+        description: Docker build arguments
+        default: ''
+        type: string
+      keep-latest-versions:
+        description: Number of recent v* tags to keep in registry
+        default: '3'
+        type: string
+    secrets:
+      INFISICAL_CLIENT_ID:
+        required: true
+      INFISICAL_CLIENT_SECRET:
+        required: true
+
+env:
+  REGISTRY: registry.jterrazz.com
+
+jobs:
+  validate:
+    name: Validate
+    uses: jterrazz/jterrazz-workflows/.github/workflows/validate.yaml@main
+
+  build:
+    name: Build and Push
+    needs: validate
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      environment: ${{ steps.tag.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup infrastructure
+        uses: jterrazz/jterrazz-workflows/actions/setup-infra@main
+        with:
+          infisical-client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
+          infisical-client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+
+      - name: Determine tag and environment
+        id: tag
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push Docker image
+        uses: jterrazz/jterrazz-workflows/actions/docker-build-push@main
+        with:
+          image-name: ${{ inputs.image-name }}
+          tag: ${{ steps.tag.outputs.tag }}
+          dockerfile: ${{ inputs.dockerfile }}
+          build-args: ${{ inputs.build-args }}
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup infrastructure
+        uses: jterrazz/jterrazz-workflows/actions/setup-infra@main
+        with:
+          infisical-client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
+          infisical-client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+
+      - name: Deploy via Helm
+        uses: jterrazz/jterrazz-workflows/actions/helm-deploy@main
+        with:
+          image-name: ${{ inputs.image-name }}
+          tag: ${{ needs.build.outputs.tag }}
+          environment: ${{ needs.build.outputs.environment }}
+          manifest: ${{ inputs.manifest }}
+          timeout: ${{ inputs.timeout }}
+
+      - name: Cleanup old images
+        uses: jterrazz/jterrazz-workflows/actions/cleanup-images@main
+        with:
+          image-name: ${{ inputs.image-name }}
+          keep-latest-versions: ${{ inputs.keep-latest-versions }}
