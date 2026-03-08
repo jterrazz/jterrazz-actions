@@ -48,6 +48,21 @@ runs:
         echo "${{ env.DOCKER_REGISTRY_PASSWORD }}" | helm registry login ${{ inputs.registry }} \
           --username ${{ env.DOCKER_REGISTRY_USERNAME }} --password-stdin
 
+    - name: Build dashboard set-file args
+      id: dashboards
+      shell: bash
+      run: |
+        DASHBOARD_ARGS=""
+        DASHBOARD_DIR="$(dirname ${{ inputs.manifest }})/dashboards"
+        if [ -d "$DASHBOARD_DIR" ]; then
+          for f in "$DASHBOARD_DIR"/*.json; do
+            [ -f "$f" ] || continue
+            name=$(basename "$f" .json)
+            DASHBOARD_ARGS="$DASHBOARD_ARGS --set-file spec.dashboards.$name=$f"
+          done
+        fi
+        echo "args=$DASHBOARD_ARGS" >> "$GITHUB_OUTPUT"
+
     - name: Deploy via Helm
       shell: bash
       run: |
@@ -60,6 +75,7 @@ runs:
           --set registry.password=${{ env.DOCKER_REGISTRY_PASSWORD }} \
           --set infrastructure.publicIp=${{ inputs.public-ip }} \
           --set infrastructure.tailscaleHostname=${{ inputs.tailscale-hostname }} \
+          ${{ steps.dashboards.outputs.args }} \
           -n ${{ inputs.environment }}-${{ inputs.image-name }} \
           --create-namespace \
           --wait --timeout ${{ inputs.timeout }} --atomic
