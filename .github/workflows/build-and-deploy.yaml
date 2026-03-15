@@ -45,7 +45,7 @@ env:
   REGISTRY: registry.jterrazz.com
 
 jobs:
-  validate:
+  checks:
     uses: jterrazz/jterrazz-workflows/.github/workflows/validate.yaml@main
     with:
       node-version: ${{ inputs.node-version }}
@@ -53,7 +53,7 @@ jobs:
 
   build:
     name: Build and Push
-    needs: validate
+    needs: checks
     runs-on: ubuntu-24.04-arm
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
