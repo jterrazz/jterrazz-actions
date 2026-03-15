@@ -46,7 +46,6 @@ env:
 
 jobs:
   validate:
-    name: Validate
     uses: jterrazz/jterrazz-workflows/.github/workflows/validate.yaml@main
     with:
       node-version: ${{ inputs.node-version }}
