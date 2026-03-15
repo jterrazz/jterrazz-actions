@@ -52,13 +52,10 @@ jobs:
       node-version: ${{ inputs.node-version }}
       package-manager: ${{ inputs.package-manager }}
 
-  build:
-    name: Build and Push
+  build-and-deploy:
+    name: Build and Deploy
     needs: checks
     runs-on: ubuntu-24.04-arm
-    outputs:
-      tag: ${{ steps.tag.outputs.tag }}
-      environment: ${{ steps.tag.outputs.environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -88,26 +85,12 @@ jobs:
           dockerfile: ${{ inputs.dockerfile }}
           build-args: ${{ inputs.build-args }}
 
-  deploy:
-    name: Deploy
-    needs: build
-    runs-on: ubuntu-24.04-arm
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup infrastructure
-        uses: jterrazz/jterrazz-workflows/actions/setup-infra@main
-        with:
-          infisical-client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
-          infisical-client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
-
       - name: Deploy via Helm
         uses: jterrazz/jterrazz-workflows/actions/helm-deploy@main
         with:
           image-name: ${{ inputs.image-name }}
-          tag: ${{ needs.build.outputs.tag }}
-          environment: ${{ needs.build.outputs.environment }}
+          tag: ${{ steps.tag.outputs.tag }}
+          environment: ${{ steps.tag.outputs.environment }}
           manifest: ${{ inputs.manifest }}
           timeout: ${{ inputs.timeout }}
 
