@@ -1,0 +1,54 @@
+name: Release Go Binary
+
+on:
+  workflow_call:
+    inputs:
+      binary-name:
+        description: Name of the output binary
+        required: true
+        type: string
+      build-path:
+        description: Path to the Go main package
+        default: '.'
+        type: string
+      go-version:
+        description: Go version to use
+        default: '1.24'
+        type: string
+      targets:
+        description: Comma-separated GOOS/GOARCH pairs to build
+        default: 'darwin/arm64,darwin/amd64,linux/arm64,linux/amd64'
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+
+      - name: Build binaries
+        run: |
+          IFS=',' read -ra PAIRS <<< "${{ inputs.targets }}"
+          for pair in "${PAIRS[@]}"; do
+            os="${pair%/*}"
+            arch="${pair#*/}"
+            output="${{ inputs.binary-name }}-${os}-${arch}"
+            echo "Building ${output}..."
+            GOOS="${os}" GOARCH="${arch}" go build -o "dist/${output}" ${{ inputs.build-path }}
+          done
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/*
