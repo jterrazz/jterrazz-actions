@@ -66,31 +66,76 @@ jobs:
           infisical-client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
           infisical-client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
 
-      - name: Determine tag and environment
-        id: tag
+      - name: Determine image tag
+        id: image
         run: |
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-            echo "environment=prod" >> $GITHUB_OUTPUT
+            echo "trigger=tag" >> $GITHUB_OUTPUT
           else
             echo "tag=latest" >> $GITHUB_OUTPUT
-            echo "environment=staging" >> $GITHUB_OUTPUT
+            echo "trigger=main" >> $GITHUB_OUTPUT
           fi
 
       - name: Build and push Docker image
         uses: jterrazz/jterrazz-workflows/actions/docker-build-push@main
         with:
           image-name: ${{ inputs.image-name }}
-          tag: ${{ steps.tag.outputs.tag }}
+          tag: ${{ steps.image.outputs.tag }}
           dockerfile: ${{ inputs.dockerfile }}
           build-args: ${{ inputs.build-args }}
+
+      - name: Resolve deployments
+        id: deployments
+        run: |
+          MANIFEST="${{ inputs.manifest }}"
+          TRIGGER="${{ steps.image.outputs.trigger }}"
+          IMAGE_TAG="${{ steps.image.outputs.tag }}"
+          EVENT="${{ github.event_name }}"
+
+          # Check if manifest uses tag-based deployments
+          HAS_TAGS=$(yq -r '[.environments[].tag // empty] | length' "$MANIFEST" 2>/dev/null || echo "0")
+
+          if [ "$HAS_TAGS" = "0" ]; then
+            # Legacy: single environment based on git ref
+            if [ "$TRIGGER" = "tag" ]; then
+              echo 'list=[{"env":"prod","image_tag":"'"$IMAGE_TAG"'"}]' >> $GITHUB_OUTPUT
+            else
+              echo 'list=[{"env":"staging","image_tag":"latest"}]' >> $GITHUB_OUTPUT
+            fi
+          else
+            DEPLOYMENTS="[]"
+
+            if [ "$TRIGGER" = "tag" ]; then
+              # v* tag push: deploy environments with tag: next
+              while IFS= read -r env; do
+                [ -z "$env" ] && continue
+                DEPLOYMENTS=$(echo "$DEPLOYMENTS" | jq -c --arg e "$env" --arg t "$IMAGE_TAG" '. + [{"env":$e,"image_tag":$t}]')
+              done < <(yq -r '.environments | to_entries[] | select(.value.tag == "next") | .key' "$MANIFEST")
+            else
+              # main push or workflow_dispatch: deploy environments with tag: main
+              while IFS= read -r env; do
+                [ -z "$env" ] && continue
+                DEPLOYMENTS=$(echo "$DEPLOYMENTS" | jq -c --arg e "$env" '. + [{"env":$e,"image_tag":"latest"}]')
+              done < <(yq -r '.environments | to_entries[] | select(.value.tag == "main") | .key' "$MANIFEST")
+
+              # Pinned environments (e.g. tag: v1.6.0) only deploy on workflow_dispatch
+              if [ "$EVENT" = "workflow_dispatch" ]; then
+                while IFS='=' read -r env tag; do
+                  [ -z "$env" ] && continue
+                  DEPLOYMENTS=$(echo "$DEPLOYMENTS" | jq -c --arg e "$env" --arg t "$tag" '. + [{"env":$e,"image_tag":$t}]')
+                done < <(yq -r '.environments | to_entries[] | select(.value.tag != "main" and .value.tag != "next") | (.key + "=" + .value.tag)' "$MANIFEST")
+              fi
+            fi
+
+            echo "list=$DEPLOYMENTS" >> $GITHUB_OUTPUT
+          fi
 
       - name: Deploy via Helm
         uses: jterrazz/jterrazz-workflows/actions/helm-deploy@main
         with:
           image-name: ${{ inputs.image-name }}
-          tag: ${{ steps.tag.outputs.tag }}
-          environment: ${{ steps.tag.outputs.environment }}
+          deployments: ${{ steps.deployments.outputs.list }}
           manifest: ${{ inputs.manifest }}
           timeout: ${{ inputs.timeout }}
 

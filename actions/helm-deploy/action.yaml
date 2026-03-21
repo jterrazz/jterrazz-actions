@@ -9,11 +9,14 @@ inputs:
     description: Image name (without registry prefix)
     required: true
   tag:
-    description: Image tag to deploy
-    required: true
+    description: Image tag to deploy (legacy single-deploy mode)
+    default: ''
   environment:
-    description: Deployment environment (prod, staging)
-    default: 'prod'
+    description: Deployment environment (legacy single-deploy mode)
+    default: ''
+  deployments:
+    description: 'JSON array of {"env","image_tag"} objects. Overrides tag/environment inputs.'
+    default: ''
   manifest:
     description: Path to the Helm values manifest
     default: '.infrastructure/application.yaml'
@@ -66,16 +69,33 @@ runs:
     - name: Deploy via Helm
       shell: bash
       run: |
-        helm upgrade --install ${{ inputs.environment }}-${{ inputs.image-name }} \
-          oci://${{ inputs.registry }}/charts/app \
-          -f ${{ inputs.manifest }} \
-          --set environment=${{ inputs.environment }} \
-          --set spec.image=${{ inputs.registry }}/${{ inputs.image-name }}:${{ inputs.tag }} \
-          --set registry.username=${{ env.DOCKER_REGISTRY_USERNAME }} \
-          --set registry.password=${{ env.DOCKER_REGISTRY_PASSWORD }} \
-          --set infrastructure.publicIp=${{ inputs.public-ip }} \
-          --set infrastructure.tailscaleHostname=${{ inputs.tailscale-hostname }} \
-          ${{ steps.dashboards.outputs.args }} \
-          -n ${{ inputs.environment }}-${{ inputs.image-name }} \
-          --create-namespace \
-          --wait --timeout ${{ inputs.timeout }} --atomic
+        DEPLOYMENTS='${{ inputs.deployments }}'
+
+        # Fallback to legacy single-deploy inputs
+        if [ -z "$DEPLOYMENTS" ] || [ "$DEPLOYMENTS" = "[]" ]; then
+          ENV="${{ inputs.environment }}"
+          TAG="${{ inputs.tag }}"
+          if [ -z "$ENV" ] || [ -z "$TAG" ]; then
+            echo "Error: either 'deployments' or both 'environment' and 'tag' must be provided"
+            exit 1
+          fi
+          DEPLOYMENTS='[{"env":"'"$ENV"'","image_tag":"'"$TAG"'"}]'
+        fi
+
+        echo "$DEPLOYMENTS" | jq -r '.[] | "\(.env)|\(.image_tag)"' | while IFS='|' read -r ENV TAG; do
+          echo "::group::Deploying $ENV with image tag $TAG"
+          helm upgrade --install ${ENV}-${{ inputs.image-name }} \
+            oci://${{ inputs.registry }}/charts/app \
+            -f ${{ inputs.manifest }} \
+            --set environment=${ENV} \
+            --set spec.image=${{ inputs.registry }}/${{ inputs.image-name }}:${TAG} \
+            --set registry.username=${{ env.DOCKER_REGISTRY_USERNAME }} \
+            --set registry.password=${{ env.DOCKER_REGISTRY_PASSWORD }} \
+            --set infrastructure.publicIp=${{ inputs.public-ip }} \
+            --set infrastructure.tailscaleHostname=${{ inputs.tailscale-hostname }} \
+            ${{ steps.dashboards.outputs.args }} \
+            -n ${ENV}-${{ inputs.image-name }} \
+            --create-namespace \
+            --wait --timeout ${{ inputs.timeout }} --atomic
+          echo "::endgroup::"
+        done
