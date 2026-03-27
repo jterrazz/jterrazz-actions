@@ -1,34 +1,28 @@
-name: Helm Deploy
-description: Deploy an application to the Kubernetes cluster via the app Helm chart
+name: Deploy via Helm
+description: Deploy an application to the K3s cluster using the shared Helm chart
 
 inputs:
   registry:
     description: Container registry hostname
-    default: 'registry.jterrazz.com'
+    default: "registry.jterrazz.com"
   image-name:
     description: Image name (without registry prefix)
     required: true
-  tag:
-    description: Image tag to deploy (legacy single-deploy mode)
-    default: ''
-  environment:
-    description: Deployment environment (legacy single-deploy mode)
-    default: ''
   deployments:
-    description: 'JSON array of {"env","image_tag"} objects. Overrides tag/environment inputs.'
-    default: ''
+    description: JSON array of {"env","image_tag"} objects
+    required: true
   manifest:
     description: Path to the Helm values manifest
-    default: '.infrastructure/application.yaml'
+    default: ".infrastructure/application.yaml"
   timeout:
     description: Helm deploy timeout
-    default: '3m'
+    default: "3m"
   public-ip:
     description: Server public IP for DNS records
-    default: '46.224.186.190'
+    default: "46.224.186.190"
   tailscale-hostname:
     description: Tailscale hostname for private DNS records
-    default: 'jterrazz-vps.tail77a797.ts.net'
+    default: "jterrazz-vps.tail77a797.ts.net"
 
 runs:
   using: composite
@@ -36,7 +30,7 @@ runs:
     - name: Setup Helm
       uses: azure/setup-helm@v4
       with:
-        version: 'v3.17.3'
+        version: "v3.17.3"
 
     - name: Setup kubeconfig
       shell: bash
@@ -51,7 +45,7 @@ runs:
         echo "${{ env.DOCKER_REGISTRY_PASSWORD }}" | helm registry login ${{ inputs.registry }} \
           --username ${{ env.DOCKER_REGISTRY_USERNAME }} --password-stdin
 
-    - name: Build dashboard set-file args
+    - name: Build dashboard args
       id: dashboards
       shell: bash
       run: |
@@ -66,23 +60,10 @@ runs:
         fi
         echo "args=$DASHBOARD_ARGS" >> "$GITHUB_OUTPUT"
 
-    - name: Deploy via Helm
+    - name: Deploy
       shell: bash
       run: |
-        DEPLOYMENTS='${{ inputs.deployments }}'
-
-        # Fallback to legacy single-deploy inputs
-        if [ -z "$DEPLOYMENTS" ] || [ "$DEPLOYMENTS" = "[]" ]; then
-          ENV="${{ inputs.environment }}"
-          TAG="${{ inputs.tag }}"
-          if [ -z "$ENV" ] || [ -z "$TAG" ]; then
-            echo "Error: either 'deployments' or both 'environment' and 'tag' must be provided"
-            exit 1
-          fi
-          DEPLOYMENTS='[{"env":"'"$ENV"'","image_tag":"'"$TAG"'"}]'
-        fi
-
-        echo "$DEPLOYMENTS" | jq -r '.[] | "\(.env)|\(.image_tag)"' | while IFS='|' read -r ENV TAG; do
+        echo '${{ inputs.deployments }}' | jq -r '.[] | "\(.env)|\(.image_tag)"' | while IFS='|' read -r ENV TAG; do
           echo "::group::Deploying $ENV with image tag $TAG"
           helm upgrade --install ${ENV}-${{ inputs.image-name }} \
             oci://${{ inputs.registry }}/charts/app \

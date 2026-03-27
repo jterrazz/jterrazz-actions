@@ -1,21 +1,21 @@
-name: Cleanup Images
-description: Remove old registry tags, run registry garbage collection, and prune node containerd images
+name: Cleanup old images
+description: Remove old registry tags, run garbage collection, and prune containerd images
 
 inputs:
   registry:
     description: Container registry hostname
-    default: 'registry.jterrazz.com'
+    default: "registry.jterrazz.com"
   image-name:
     description: Image name to clean up
     required: true
   keep-latest-versions:
     description: Number of recent v* tags to keep
-    default: '3'
+    default: "3"
 
 runs:
   using: composite
   steps:
-    - name: Clean up old registry tags
+    - name: Delete old tags
       shell: bash
       run: |
         ALL_TAGS=$(curl -s -u "${{ env.DOCKER_REGISTRY_USERNAME }}:${{ env.DOCKER_REGISTRY_PASSWORD }}" \
@@ -46,14 +46,14 @@ runs:
           fi
         done
 
-    - name: Run registry garbage collection
+    - name: Registry garbage collection
       shell: bash
       run: |
         kubectl exec -n platform-registry deploy/registry -- \
           bin/registry garbage-collect /etc/docker/registry/config.yml \
           --delete-untagged 2>&1 | tail -5 || true
 
-    - name: Prune node containerd images
+    - name: Prune containerd images
       shell: bash
       run: |
         kubectl run ctr-prune-$RANDOM --rm -i --restart=Never --image=alpine:latest \

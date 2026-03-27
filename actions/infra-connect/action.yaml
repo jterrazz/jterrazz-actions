@@ -1,5 +1,5 @@
-name: Setup Infrastructure Access
-description: Connect to Infisical, Tailscale, and container registry
+name: Connect to infrastructure
+description: Fetch secrets from Infisical, connect Tailscale VPN, and log in to container registry
 
 inputs:
   infisical-client-id:
@@ -10,18 +10,18 @@ inputs:
     required: true
   infisical-project-slug:
     description: Infisical project slug
-    default: 'jterrazz'
+    default: "jterrazz"
   infisical-secret-path:
     description: Infisical secret path
-    default: '/infrastructure-apps'
+    default: "/infrastructure-apps"
   registry:
     description: Container registry hostname
-    default: 'registry.jterrazz.com'
+    default: "registry.jterrazz.com"
 
 runs:
   using: composite
   steps:
-    - name: Fetch secrets from Infisical
+    - name: Fetch secrets
       uses: Infisical/secrets-action@v1.0.9
       with:
         method: universal
@@ -32,14 +32,14 @@ runs:
         env-slug: prod
         secret-path: ${{ inputs.infisical-secret-path }}
 
-    - name: Setup Tailscale
+    - name: Connect Tailscale
       uses: tailscale/github-action@v2
       with:
         oauth-client-id: ${{ env.TAILSCALE_OAUTH_CLIENT_ID }}
         oauth-secret: ${{ env.TAILSCALE_OAUTH_CLIENT_SECRET }}
         tags: tag:ci
 
-    - name: Log in to container registry
+    - name: Log in to registry
       uses: docker/login-action@v4
       with:
         registry: ${{ inputs.registry }}

@@ -1,10 +1,10 @@
-name: Docker Build and Push
-description: Build and push a Docker image to a container registry
+name: Build and push Docker image
+description: Build a Docker image with Buildx and push to the container registry
 
 inputs:
   registry:
     description: Container registry hostname
-    default: 'registry.jterrazz.com'
+    default: "registry.jterrazz.com"
   image-name:
     description: Image name (without registry prefix)
     required: true
@@ -13,13 +13,13 @@ inputs:
     required: true
   context:
     description: Docker build context path
-    default: '.'
+    default: "."
   dockerfile:
     description: Path to Dockerfile
-    default: 'Dockerfile'
+    default: "Dockerfile"
   build-args:
     description: Docker build arguments
-    default: ''
+    default: ""
 
 outputs:
   image:
@@ -29,10 +29,10 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Set up Docker Buildx
+    - name: Setup Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Build and push Docker image
+    - name: Build and push
       uses: docker/build-push-action@v6
       with:
         context: ${{ inputs.context }}
