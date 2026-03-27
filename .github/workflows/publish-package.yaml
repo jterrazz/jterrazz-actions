@@ -1,0 +1,48 @@
+name: Publish Package
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node.js version to install
+        default: "24"
+        type: string
+    secrets:
+      NPM_ACCESS_TOKEN:
+        required: true
+
+jobs:
+  validate:
+    name: Validate
+    uses: jterrazz/jterrazz-workflows/.github/workflows/validate.yaml@main
+    with:
+      node-version: ${{ inputs.node-version }}
+
+  publish:
+    name: Publish
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: make build
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
