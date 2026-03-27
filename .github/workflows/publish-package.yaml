@@ -11,9 +11,26 @@ on:
 jobs:
   validate:
     name: Validate
-    uses: jterrazz/jterrazz-workflows/.github/workflows/validate.yaml@main
-    with:
-      node-version: ${{ inputs.node-version }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        if: inputs.node-version != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+
+      - name: Build
+        run: make build
+
+      - name: Lint
+        run: make lint
+
+      - name: Test
+        run: make test
 
   publish:
     name: Publish
