@@ -11,25 +11,9 @@ on:
 jobs:
   validate:
     name: Validate
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node-version }}
-          cache: npm
-
-      - name: Build
-        run: make build
-
-      - name: Lint
-        run: make lint
-
-      - name: Test
-        run: make test
+    uses: jterrazz/jterrazz-workflows/.github/workflows/validate.yaml@main
+    with:
+      node-version: ${{ inputs.node-version }}
 
   publish:
     name: Publish
