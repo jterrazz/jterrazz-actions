@@ -7,33 +7,29 @@ on:
         description: Image name (without registry prefix)
         required: true
         type: string
+      node-version:
+        description: Node.js version for validation (leave empty to skip)
+        default: ""
+        type: string
       timeout:
         description: Helm deploy timeout
-        default: '3m'
+        default: "3m"
         type: string
       manifest:
         description: Path to the Helm values manifest
-        default: '.infrastructure/application.yaml'
+        default: ".infrastructure/application.yaml"
         type: string
       dockerfile:
         description: Path to Dockerfile
-        default: 'Dockerfile'
+        default: "Dockerfile"
         type: string
       build-args:
         description: Docker build arguments
-        default: ''
+        default: ""
         type: string
       keep-latest-versions:
         description: Number of recent v* tags to keep in registry
-        default: '3'
-        type: string
-      node-version:
-        description: Node.js version to install for validation (leave empty to skip)
-        default: ''
-        type: string
-      package-manager:
-        description: Package manager for dependency caching (npm, pnpm, yarn)
-        default: 'npm'
+        default: "3"
         type: string
     secrets:
       INFISICAL_CLIENT_ID:
@@ -45,22 +41,21 @@ env:
   REGISTRY: registry.jterrazz.com
 
 jobs:
-  checks:
-    name: Checks
+  validate:
+    name: Validate
     uses: jterrazz/jterrazz-workflows/.github/workflows/validate.yaml@main
     with:
       node-version: ${{ inputs.node-version }}
-      package-manager: ${{ inputs.package-manager }}
 
-  build-and-deploy:
+  release:
     name: Release
-    needs: checks
+    needs: validate
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup infrastructure
+      - name: Connect to infrastructure
         uses: jterrazz/jterrazz-workflows/actions/infra-connect@main
         with:
           infisical-client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
@@ -77,7 +72,7 @@ jobs:
             echo "trigger=main" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build and push Docker image
+      - name: Build and push image
         uses: jterrazz/jterrazz-workflows/actions/docker-build@main
         with:
           image-name: ${{ inputs.image-name }}
@@ -93,14 +88,10 @@ jobs:
           IMAGE_TAG="${{ steps.image.outputs.tag }}"
           EVENT="${{ github.event_name }}"
 
-          # Parse environments as JSON for reliable querying
           ENVS_JSON=$(yq -o json '.environments' "$MANIFEST" 2>/dev/null || echo "{}")
-
-          # Check if manifest uses tag-based deployments (any environment with a 'tag' field)
           HAS_TAGS=$(echo "$ENVS_JSON" | jq '[to_entries[].value.tag // empty] | length')
 
           if [ "$HAS_TAGS" = "0" ]; then
-            # Legacy: single environment based on git ref
             if [ "$TRIGGER" = "tag" ]; then
               echo 'list=[{"env":"prod","image_tag":"'"$IMAGE_TAG"'"}]' >> $GITHUB_OUTPUT
             else
@@ -108,15 +99,12 @@ jobs:
             fi
           else
             if [ "$TRIGGER" = "tag" ]; then
-              # v* tag push: deploy environments with tag: next
               DEPLOYMENTS=$(echo "$ENVS_JSON" | jq -c --arg t "$IMAGE_TAG" \
                 '[to_entries[] | select(.value.tag == "next") | {"env": .key, "image_tag": $t}]')
             else
-              # main push or workflow_dispatch: deploy environments with tag: main
               DEPLOYMENTS=$(echo "$ENVS_JSON" | jq -c \
                 '[to_entries[] | select(.value.tag == "main") | {"env": .key, "image_tag": "latest"}]')
 
-              # Pinned environments (e.g. tag: v1.6.0) only deploy on workflow_dispatch
               if [ "$EVENT" = "workflow_dispatch" ]; then
                 PINNED=$(echo "$ENVS_JSON" | jq -c \
                   '[to_entries[] | select(.value.tag != "main" and .value.tag != "next") | {"env": .key, "image_tag": .value.tag}]')
@@ -127,7 +115,7 @@ jobs:
             echo "list=$DEPLOYMENTS" >> $GITHUB_OUTPUT
           fi
 
-      - name: Deploy via Helm
+      - name: Deploy
         uses: jterrazz/jterrazz-workflows/actions/docker-deploy@main
         with:
           image-name: ${{ inputs.image-name }}
