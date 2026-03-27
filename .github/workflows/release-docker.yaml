@@ -61,7 +61,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup infrastructure
-        uses: jterrazz/jterrazz-workflows/actions/setup-infra@main
+        uses: jterrazz/jterrazz-workflows/actions/infra-connect@main
         with:
           infisical-client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
           infisical-client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
@@ -78,7 +78,7 @@ jobs:
           fi
 
       - name: Build and push Docker image
-        uses: jterrazz/jterrazz-workflows/actions/docker-build-push@main
+        uses: jterrazz/jterrazz-workflows/actions/docker-build@main
         with:
           image-name: ${{ inputs.image-name }}
           tag: ${{ steps.image.outputs.tag }}
@@ -128,7 +128,7 @@ jobs:
           fi
 
       - name: Deploy via Helm
-        uses: jterrazz/jterrazz-workflows/actions/helm-deploy@main
+        uses: jterrazz/jterrazz-workflows/actions/docker-deploy@main
         with:
           image-name: ${{ inputs.image-name }}
           deployments: ${{ steps.deployments.outputs.list }}
@@ -136,7 +136,7 @@ jobs:
           timeout: ${{ inputs.timeout }}
 
       - name: Cleanup old images
-        uses: jterrazz/jterrazz-workflows/actions/cleanup-images@main
+        uses: jterrazz/jterrazz-workflows/actions/docker-cleanup@main
         with:
           image-name: ${{ inputs.image-name }}
           keep-latest-versions: ${{ inputs.keep-latest-versions }}

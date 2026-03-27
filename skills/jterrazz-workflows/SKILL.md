@@ -112,10 +112,10 @@ jobs:
 
 | Action | Purpose |
 |--------|---------|
-| `actions/setup-infra` | Connect to Infisical, Tailscale, and Docker registry |
-| `actions/docker-build-push` | Build + push Docker image with Buildx caching |
-| `actions/helm-deploy` | Deploy via Helm to K3s cluster |
-| `actions/cleanup-images` | Prune old tags + registry GC |
+| `actions/infra-connect` | Connect to Infisical, Tailscale, and Docker registry |
+| `actions/docker-build` | Build + push Docker image with Buildx caching |
+| `actions/docker-deploy` | Deploy via Helm to K3s cluster |
+| `actions/docker-cleanup` | Prune old tags + registry GC |
 
 ## Prerequisites
 
