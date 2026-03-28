@@ -1,9 +1,11 @@
 ---
 name: jterrazz-workflows
-description: Shared CI/CD workflows for jterrazz projects — validate, release-npm, release-docker, release-go. Activates when setting up GitHub Actions, configuring CI pipelines, or debugging workflow failures.
+description: CI/CD for the @jterrazz ecosystem — defines how all projects validate and release. Shared GitHub Actions workflows. Activates when setting up CI, configuring pipelines, or debugging workflows.
 ---
 
 # jterrazz-workflows
+
+Part of the @jterrazz ecosystem. Defines how all projects validate and release.
 
 Reusable GitHub Actions workflows and composite actions for all @jterrazz repos.
 
