@@ -29,6 +29,9 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Setup QEMU
+      uses: docker/setup-qemu-action@v3
+
     - name: Setup Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -38,6 +41,7 @@ runs:
         context: ${{ inputs.context }}
         file: ${{ inputs.dockerfile }}
         push: true
+        platforms: linux/arm64
         tags: ${{ inputs.registry }}/${{ inputs.image-name }}:${{ inputs.tag }}
         build-args: ${{ inputs.build-args }}
         cache-from: type=gha
