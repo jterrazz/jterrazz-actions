@@ -1,0 +1,124 @@
+name: Release Tauri
+
+on:
+  workflow_call:
+    inputs:
+      project-path:
+        description: Path to the Tauri project (the directory containing src-tauri/)
+        required: true
+        type: string
+      node-version:
+        description: Node.js version for the frontend build
+        default: "22"
+        type: string
+      go-version:
+        description: Optionally install Go before the pre-build script (useful for sidecar binaries). Empty = skip.
+        default: ""
+        type: string
+      pre-build-script:
+        description: Bash script to run after Node + Go setup but before tauri-action. Useful for building sidecar binaries that the Tauri bundle ships.
+        default: ""
+        type: string
+      release-name:
+        description: Display name for the GitHub Release. Defaults to "<repo> <tag>".
+        default: ""
+        type: string
+      release-body:
+        description: Body text for the GitHub Release. Defaults to the repo description.
+        default: ""
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Install frontend dependencies
+        working-directory: ${{ inputs.project-path }}
+        run: npm ci
+
+      - name: Setup Go
+        if: inputs.go-version != ''
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+
+      - name: Run pre-build script
+        if: inputs.pre-build-script != ''
+        run: ${{ inputs.pre-build-script }}
+        shell: bash
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Tauri auto-updater signing (optional — left empty if the
+          # consumer doesn't ship updates).
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Apple code signing + notarization (macOS only).
+          # tauri-action imports the .p12 cert into a temporary
+          # keychain, signs the .app + .dmg, then submits to Apple's
+          # notary service via APPLE_ID + APPLE_PASSWORD (the latter
+          # MUST be an app-specific password, not the real Apple ID
+          # password).
+          #
+          # ⚠️ Gotcha: the .p12 must be exported with
+          #     openssl pkcs12 -export -legacy
+          # Modern openssl 3.x defaults to PBKDF2 + AES which
+          # `security import` on macOS can't read. The error message
+          # is the misleading "MAC verification failed (wrong
+          # password?)". The legacy flag falls back to PBE-SHA1-3DES
+          # which every macOS understands.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          projectPath: ${{ inputs.project-path }}
+          tagName: ${{ github.ref_name }}
+          releaseName: ${{ inputs.release-name != '' && inputs.release-name || format('{0} {1}', github.event.repository.name, github.ref_name) }}
+          releaseBody: ${{ inputs.release-body != '' && inputs.release-body || github.event.repository.description }}
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          updaterJsonKeepUniversal: true
+          args: --target ${{ matrix.target }}
