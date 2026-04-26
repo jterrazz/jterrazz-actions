@@ -1,9 +1,9 @@
 ---
-name: jterrazz-workflows
+name: jterrazz-actions
 description: CI/CD for the @jterrazz ecosystem — defines how all projects validate and release. Shared GitHub Actions workflows. Activates when setting up CI, configuring pipelines, or debugging workflows.
 ---
 
-# jterrazz-workflows
+# jterrazz-actions
 
 Part of the @jterrazz ecosystem. Defines how all projects validate and release.
 
@@ -33,7 +33,7 @@ on:
     branches: [main]
 jobs:
   validate:
-    uses: jterrazz/jterrazz-workflows/.github/workflows/validate.yaml@main
+    uses: jterrazz/jterrazz-actions/.github/workflows/validate.yaml@main
     with:
       node-version: "24"
 ```
@@ -49,7 +49,7 @@ permissions:
   id-token: write
 jobs:
   release:
-    uses: jterrazz/jterrazz-workflows/.github/workflows/release-npm.yaml@main
+    uses: jterrazz/jterrazz-actions/.github/workflows/release-npm.yaml@main
     with:
       node-version: "24"
     secrets: inherit
@@ -66,7 +66,7 @@ on:
   workflow_call:
 jobs:
   validate:
-    uses: jterrazz/jterrazz-workflows/.github/workflows/validate.yaml@main
+    uses: jterrazz/jterrazz-actions/.github/workflows/validate.yaml@main
     with:
       node-version: "24"
 ```
@@ -84,7 +84,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   release:
-    uses: jterrazz/jterrazz-workflows/.github/workflows/release-docker.yaml@main
+    uses: jterrazz/jterrazz-actions/.github/workflows/release-docker.yaml@main
     with:
       image-name: {app-name}
       node-version: "24"
@@ -105,7 +105,7 @@ permissions:
   contents: write
 jobs:
   release:
-    uses: jterrazz/jterrazz-workflows/.github/workflows/release-go.yaml@main
+    uses: jterrazz/jterrazz-actions/.github/workflows/release-go.yaml@main
     with:
       binary-name: j
       build-path: ./src/cmd/j
@@ -123,7 +123,7 @@ permissions:
   contents: write
 jobs:
   desktop:
-    uses: jterrazz/jterrazz-workflows/.github/workflows/release-tauri.yaml@main
+    uses: jterrazz/jterrazz-actions/.github/workflows/release-tauri.yaml@main
     with:
       project-path: apps/observatory
     secrets: inherit
@@ -136,7 +136,7 @@ an optional `pre-build-script` and `go-version`:
 ```yaml
 jobs:
   desktop:
-    uses: jterrazz/jterrazz-workflows/.github/workflows/release-tauri.yaml@main
+    uses: jterrazz/jterrazz-actions/.github/workflows/release-tauri.yaml@main
     with:
       project-path: apps/observatory
       go-version: "1.25"

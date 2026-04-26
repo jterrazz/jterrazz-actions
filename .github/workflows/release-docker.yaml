@@ -43,7 +43,7 @@ env:
 jobs:
   validate:
     name: Validate
-    uses: jterrazz/jterrazz-workflows/.github/workflows/validate.yaml@main
+    uses: jterrazz/jterrazz-actions/.github/workflows/validate.yaml@main
     with:
       node-version: ${{ inputs.node-version }}
 
@@ -56,7 +56,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Connect to infrastructure
-        uses: jterrazz/jterrazz-workflows/actions/infra-connect@main
+        uses: jterrazz/jterrazz-actions/actions/infra-connect@main
         with:
           infisical-client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
           infisical-client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
@@ -73,7 +73,7 @@ jobs:
           fi
 
       - name: Build and push image
-        uses: jterrazz/jterrazz-workflows/actions/docker-build@main
+        uses: jterrazz/jterrazz-actions/actions/docker-build@main
         with:
           image-name: ${{ inputs.image-name }}
           tag: ${{ steps.image.outputs.tag }}
@@ -116,7 +116,7 @@ jobs:
           fi
 
       - name: Deploy
-        uses: jterrazz/jterrazz-workflows/actions/docker-deploy@main
+        uses: jterrazz/jterrazz-actions/actions/docker-deploy@main
         with:
           image-name: ${{ inputs.image-name }}
           deployments: ${{ steps.deployments.outputs.list }}
@@ -124,7 +124,7 @@ jobs:
           timeout: ${{ inputs.timeout }}
 
       - name: Cleanup old images
-        uses: jterrazz/jterrazz-workflows/actions/docker-cleanup@main
+        uses: jterrazz/jterrazz-actions/actions/docker-cleanup@main
         with:
           image-name: ${{ inputs.image-name }}
           keep-latest-versions: ${{ inputs.keep-latest-versions }}

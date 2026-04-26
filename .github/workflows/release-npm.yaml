@@ -11,7 +11,7 @@ on:
 jobs:
   validate:
     name: Validate
-    uses: jterrazz/jterrazz-workflows/.github/workflows/validate.yaml@main
+    uses: jterrazz/jterrazz-actions/.github/workflows/validate.yaml@main
     with:
       node-version: ${{ inputs.node-version }}
 
