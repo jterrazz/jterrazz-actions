@@ -18,8 +18,13 @@ inputs:
     description: Helm deploy timeout
     default: "3m"
   public-ip:
-    description: Server public IP for DNS records
-    default: "46.224.186.190"
+    description: >
+      Public DNS target for app IngressRoutes (used by external-dns to create
+      CNAMEs for public hosts). Despite the historical "ip" name, the value
+      is now the Cloudflare tunnel hostname — traffic enters via cloudflared
+      in-cluster, not via a public IP on the host. Override to point at a
+      different cluster (e.g. a local OrbStack VM with its own tunnel).
+    default: "8f4157bb-f883-424b-8ccd-8332867cf1b2.cfargotunnel.com"
   tailscale-hostname:
     description: Tailscale hostname for private DNS records
     default: "jterrazz-vps.tail77a797.ts.net"
