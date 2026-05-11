@@ -34,6 +34,14 @@ runs:
 
     - name: Setup Buildx
       uses: docker/setup-buildx-action@v3
+      # network=host makes the buildkit container share the runner's
+      # network namespace, including its Tailscale interface. Without
+      # this, buildx uses Docker's default bridge with Azure DNS, which
+      # cannot resolve registry.jterrazz.com (the public CNAME points
+      # into the private *.ts.net zone that only Tailscale's MagicDNS
+      # knows). The push step then NXDOMAINs out.
+      with:
+        driver-opts: network=host
 
     - name: Build and push
       uses: docker/build-push-action@v6
