@@ -13,7 +13,7 @@ inputs:
     default: "jterrazz"
   infisical-secret-path:
     description: Infisical secret path
-    default: "/infrastructure-apps"
+    default: "/jterrazz-ci"
   registry:
     description: Container registry hostname
     default: "registry.jterrazz.com"
