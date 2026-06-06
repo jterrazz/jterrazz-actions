@@ -16,7 +16,12 @@ inputs:
     default: ".infrastructure/application.yaml"
   timeout:
     description: Helm deploy timeout
-    default: "3m"
+    # 5m gives cert-manager headroom on the first deploy that introduces
+    # a new Certificate (DNS-01 against Cloudflare typically takes ~60s
+    # but can queue when several apps roll out simultaneously). Steady-
+    # state upgrades that don't rename a cert finish in seconds, so the
+    # higher default costs nothing.
+    default: "5m"
   public-target:
     description: >
       Public DNS target for app IngressRoutes (used by external-dns to create
