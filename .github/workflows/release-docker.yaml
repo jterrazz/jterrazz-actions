@@ -13,7 +13,10 @@ on:
         type: string
       timeout:
         description: Helm deploy timeout
-        default: "3m"
+        # Matches docker-deploy's own default — see that action.yaml for
+        # the cert-manager headroom rationale (5m covers ACME issuance
+        # when multiple apps roll new Certificates simultaneously).
+        default: "5m"
         type: string
       manifest:
         description: Path to the Helm values manifest
