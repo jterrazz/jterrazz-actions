@@ -110,15 +110,15 @@ for the full Tauri secret list and the openssl 3.x `.p12` `-legacy` gotcha.
 ## Secrets
 
 Deploy-time secrets live in **Infisical** (project `jterrazz`, env `prod`) and are
-pulled by `infra-connect` from `/jterrazz-ci`. Each consuming repo only sets two
+pulled by `infra-connect` from `/jterrazz-actions`. Each consuming repo only sets two
 GitHub secrets — the Infisical machine-identity credentials:
 
 | GitHub secret | Purpose |
 |---------------|---------|
-| `INFISICAL_CLIENT_ID` | Infisical universal-auth client ID (read-only, scoped to `/jterrazz-ci`) |
+| `INFISICAL_CLIENT_ID` | Infisical universal-auth client ID (read-only, scoped to `/jterrazz-actions`) |
 | `INFISICAL_CLIENT_SECRET` | Its secret |
 
-`infra-connect` then loads the connectivity secrets from `/jterrazz-ci` as env vars:
+`infra-connect` then loads the connectivity secrets from `/jterrazz-actions` as env vars:
 `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_CLIENT_SECRET`,
 `DOCKER_REGISTRY_USERNAME`, `DOCKER_REGISTRY_PASSWORD`, and (for deploys)
 `KUBECONFIG_BASE64`.
