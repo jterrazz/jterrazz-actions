@@ -104,7 +104,7 @@ jobs:
 `release-tauri.yaml` also accepts an optional `go-version` + `pre-build-script`
 for apps that ship a binary sidecar inside the bundle (e.g. a Go CLI). The script
 runs after Node + Go are installed but before `tauri-action`, so the binary is on
-disk in time for the bundler. See [`skills/jterrazz-actions/SKILL.md`](skills/jterrazz-actions/SKILL.md)
+disk in time for the bundler. See [`skills/jterrazz-workflows/SKILL.md`](skills/jterrazz-workflows/SKILL.md)
 for the full Tauri secret list and the openssl 3.x `.p12` `-legacy` gotcha.
 
 ## Secrets
@@ -126,4 +126,4 @@ GitHub secrets — the Infisical machine-identity credentials:
 ## Related
 
 - [`jterrazz/jterrazz-infra`](https://github.com/jterrazz/jterrazz-infra) — the k3s cluster these workflows deploy to.
-- [`skills/jterrazz-actions/SKILL.md`](skills/jterrazz-actions/SKILL.md) — the agent-facing skill with per-project recipes and gotchas.
+- [`skills/jterrazz-workflows/SKILL.md`](skills/jterrazz-workflows/SKILL.md) — the agent-facing skill with per-project recipes and gotchas.
