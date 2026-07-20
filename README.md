@@ -43,6 +43,9 @@ jobs:
   validate:
     uses: jterrazz/jterrazz-actions/.github/workflows/validate.yaml@main
     with: { node-version: "24" }
+    # browsers: true — provisions Playwright chromium before Test (cached,
+    # version read from the caller's package-lock). For repos whose specs
+    # render pages via specification.website() (@jterrazz/test).
 ```
 
 ```yaml

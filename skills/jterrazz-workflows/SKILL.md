@@ -13,7 +13,7 @@ Reusable GitHub Actions workflows and composite actions for all @jterrazz repos.
 
 | Workflow | Purpose | Trigger |
 |----------|---------|---------|
-| `validate.yaml` | Build + lint + test | Push / PR to main |
+| `validate.yaml` | Build + lint + test (`browsers: true` provisions cached Playwright chromium for website specs) | Push / PR to main |
 | `release-npm.yaml` | Validate → npm publish with OIDC provenance | GitHub Release |
 | `release-docker.yaml` | Validate → Docker build → Helm deploy | Push to main / v* tags |
 | `release-go.yaml` | Build Go binaries → GitHub Release | v* tags |
@@ -36,6 +36,7 @@ jobs:
     uses: jterrazz/jterrazz-actions/.github/workflows/validate.yaml@main
     with:
       node-version: "24"
+      # browsers: true   # Playwright chromium for specification.website() suites
 ```
 
 ```yaml
@@ -69,6 +70,7 @@ jobs:
     uses: jterrazz/jterrazz-actions/.github/workflows/validate.yaml@main
     with:
       node-version: "24"
+      # browsers: true   # Playwright chromium for specification.website() suites
 ```
 
 ```yaml
