@@ -7,6 +7,10 @@ on:
         description: Node.js version to install (leave empty to skip)
         default: ""
         type: string
+      browsers:
+        description: Provision Playwright browsers before testing (chromium, cached by lockfile version)
+        default: false
+        type: boolean
 
 jobs:
   validate:
@@ -25,6 +29,22 @@ jobs:
 
       - name: Build
         run: make build
+
+      - name: Resolve Playwright version
+        if: inputs.browsers
+        id: playwright
+        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/playwright'].version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        if: inputs.browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install Playwright browsers
+        if: inputs.browsers
+        run: npx playwright install --with-deps chromium
 
       - name: Lint
         run: make lint
