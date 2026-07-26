@@ -4,7 +4,7 @@ description: Remove old registry tags, run garbage collection, and prune contain
 inputs:
   registry:
     description: Container registry hostname
-    default: "registry.jterrazz.com"
+    default: "registry.internal.jterrazz.com"
   image-name:
     description: Image name to clean up
     required: true

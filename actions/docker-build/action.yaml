@@ -4,7 +4,7 @@ description: Build a Docker image with Buildx and push to the container registry
 inputs:
   registry:
     description: Container registry hostname
-    default: "registry.jterrazz.com"
+    default: "registry.internal.jterrazz.com"
   image-name:
     description: Image name (without registry prefix)
     required: true
@@ -37,7 +37,7 @@ runs:
       # network=host makes the buildkit container share the runner's
       # network namespace, including its Tailscale interface. Without
       # this, buildx uses Docker's default bridge with Azure DNS, which
-      # cannot resolve registry.jterrazz.com (the public CNAME points
+      # cannot resolve registry.internal.jterrazz.com (the public CNAME points
       # into the private *.ts.net zone that only Tailscale's MagicDNS
       # knows). The push step then NXDOMAINs out.
       with:

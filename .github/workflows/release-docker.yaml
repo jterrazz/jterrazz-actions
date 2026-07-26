@@ -41,7 +41,7 @@ on:
         required: true
 
 env:
-  REGISTRY: registry.jterrazz.com
+  REGISTRY: registry.internal.jterrazz.com
 
 jobs:
   validate:

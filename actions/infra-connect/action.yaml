@@ -16,7 +16,7 @@ inputs:
     default: "/jterrazz-actions"
   registry:
     description: Container registry hostname
-    default: "registry.jterrazz.com"
+    default: "registry.internal.jterrazz.com"
 
 runs:
   using: composite
