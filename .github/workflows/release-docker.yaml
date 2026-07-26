@@ -11,6 +11,10 @@ on:
         description: Node.js version for validation (leave empty to skip)
         default: ""
         type: string
+      browsers:
+        description: Provision Playwright browsers before testing (forwarded to validate.yaml)
+        default: false
+        type: boolean
       timeout:
         description: Helm deploy timeout
         # Matches docker-deploy's own default — see that action.yaml for
@@ -49,6 +53,7 @@ jobs:
     uses: jterrazz/jterrazz-actions/.github/workflows/validate.yaml@main
     with:
       node-version: ${{ inputs.node-version }}
+      browsers: ${{ inputs.browsers }}
 
   release:
     name: Release
