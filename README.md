@@ -128,5 +128,5 @@ GitHub secrets — the Infisical machine-identity credentials:
 
 ## Related
 
-- [`jterrazz/jterrazz-infra`](https://github.com/jterrazz/jterrazz-infra) — the k3s cluster these workflows deploy to.
+- [`jterrazz/jterrazz-infrastructure`](https://github.com/jterrazz/jterrazz-infrastructure) — the k3s cluster these workflows deploy to.
 - [`skills/jterrazz-workflows/SKILL.md`](skills/jterrazz-workflows/SKILL.md) — the agent-facing skill with per-project recipes and gotchas.
