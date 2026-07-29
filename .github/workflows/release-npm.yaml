@@ -7,6 +7,10 @@ on:
         description: Node.js version to install
         default: "24"
         type: string
+      browsers:
+        description: Provision Playwright browsers before testing (forwarded to validate.yaml)
+        default: false
+        type: boolean
 
 jobs:
   validate:
@@ -14,6 +18,7 @@ jobs:
     uses: jterrazz/jterrazz-actions/.github/workflows/validate.yaml@main
     with:
       node-version: ${{ inputs.node-version }}
+      browsers: ${{ inputs.browsers }}
 
   publish:
     name: Publish
