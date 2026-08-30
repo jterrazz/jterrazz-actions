@@ -194,7 +194,7 @@ falls back to PBE-SHA1-3DES which every macOS understands.
 |--------|---------|
 | `actions/infra-connect` | Connect to Infisical, Tailscale, and Docker registry |
 | `actions/docker-build` | Build + push Docker image with Buildx caching |
-| `actions/docker-deploy` | Deploy via Helm to K3s cluster |
+| `actions/docker-deploy` | Deploy via Helm to K3s cluster (stamps `github.repository` on the Deployment — that annotation is how the infra repo rediscovers the fleet) |
 | `actions/docker-cleanup` | Prune old tags + registry GC |
 
 ## Prerequisites

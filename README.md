@@ -23,7 +23,7 @@ once, every repo gets it.
 |--------|---------|
 | [`actions/infra-connect`](actions/infra-connect) | Fetch secrets from Infisical, join Tailscale (`tag:ci`), log in to the container registry |
 | [`actions/docker-build`](actions/docker-build) | Build + push the Docker image (Buildx, `network=host` so Buildkit resolves `*.ts.net`) |
-| [`actions/docker-deploy`](actions/docker-deploy) | Deploy via `helm upgrade --install` using the shared app chart |
+| [`actions/docker-deploy`](actions/docker-deploy) | Deploy via `helm upgrade --install` using the shared app chart, stamping `github.repository` on the Deployment so the cluster records which repo builds it |
 | [`actions/docker-cleanup`](actions/docker-cleanup) | Prune old `v*` tags and run registry GC |
 
 ## Wiring up a repo

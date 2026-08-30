@@ -59,6 +59,13 @@ runs:
         fi
         echo "args=$DASHBOARD_ARGS" >> "$GITHUB_OUTPUT"
 
+    # `github.repository` is the CALLING repo even through the reusable
+    # workflow, which is the point: the app chart stamps it on the Deployment as
+    # `app.jterrazz.com/repository`, and that annotation is the only place the
+    # cluster records which repo rebuilds a workload. jterrazz-infrastructure's
+    # `make redeploy-apps` reads it off the live Deployments instead of holding
+    # a list of repos that goes stale — so an app that stops passing this drops
+    # out of the fleet rebuild.
     - name: Deploy
       shell: bash
       run: |
@@ -69,6 +76,7 @@ runs:
             -f ${{ inputs.manifest }} \
             --set environment=${ENV} \
             --set spec.image=${{ inputs.registry }}/${{ inputs.image-name }}:${TAG} \
+            --set meta.repository=${{ github.repository }} \
             --set registry.username=${{ env.DOCKER_REGISTRY_USERNAME }} \
             --set registry.password=${{ env.DOCKER_REGISTRY_PASSWORD }} \
             ${{ steps.dashboards.outputs.args }} \
