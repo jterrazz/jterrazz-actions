@@ -18,7 +18,19 @@ runs:
     - name: Delete old tags
       shell: bash
       run: |
-        ALL_TAGS=$(curl -s -u "${{ env.DOCKER_REGISTRY_USERNAME }}:${{ env.DOCKER_REGISTRY_PASSWORD }}" \
+        # A netrc file, never `-u user:password`: an argument is readable in
+        # `ps` by anything else on the runner for as long as curl runs, and
+        # this step runs curl once per tag. The values are read from the
+        # environment infra-connect exported, so they are not interpolated
+        # into this script's text either — the only copy is the 0600 file
+        # below, and it dies with the step.
+        NETRC=$(mktemp)
+        trap 'rm -f "$NETRC"' EXIT
+        chmod 600 "$NETRC"
+        printf 'machine %s\nlogin %s\npassword %s\n' \
+          "${{ inputs.registry }}" "$DOCKER_REGISTRY_USERNAME" "$DOCKER_REGISTRY_PASSWORD" > "$NETRC"
+
+        ALL_TAGS=$(curl -s --netrc-file "$NETRC" \
           "https://${{ inputs.registry }}/v2/${{ inputs.image-name }}/tags/list" \
           | jq -r '.tags[]? // empty') || true
 
@@ -44,14 +56,13 @@ runs:
           [[ "$TAG" == "latest" ]] && continue
           echo "$KEEP_VTAGS" | grep -qx "$TAG" 2>/dev/null && continue
 
-          DIGEST=$(curl -s -I -u "${{ env.DOCKER_REGISTRY_USERNAME }}:${{ env.DOCKER_REGISTRY_PASSWORD }}" \
+          DIGEST=$(curl -s -I --netrc-file "$NETRC" \
             -H "Accept: $ACCEPT_HEADER" \
             "https://${{ inputs.registry }}/v2/${{ inputs.image-name }}/manifests/$TAG" \
             | grep -i docker-content-digest | awk '{print $2}' | tr -d '\r' || true)
 
           if [ -n "$DIGEST" ]; then
-            curl -s -X DELETE \
-              -u "${{ env.DOCKER_REGISTRY_USERNAME }}:${{ env.DOCKER_REGISTRY_PASSWORD }}" \
+            curl -s -X DELETE --netrc-file "$NETRC" \
               "https://${{ inputs.registry }}/v2/${{ inputs.image-name }}/manifests/$DIGEST" || true
             echo "Deleted: $TAG ($DIGEST)"
           fi
