@@ -66,6 +66,14 @@ runs:
     # `make redeploy-apps` reads it off the live Deployments instead of holding
     # a list of repos that goes stale — so an app that stops passing this drops
     # out of the fleet rebuild.
+    #
+    # The chart is handed NO credential. `registry-credentials` — the pull
+    # secret every pod on our registry mounts — is synced into the namespace by
+    # the Infisical operator from /jterrazz-actions, the same path this job read
+    # its own login from a few steps above. Passing it as a value again would
+    # put the password back on this runner's argv and into every release Secret
+    # Helm keeps; app chart 2.12.0 dropped `registry.username`/`registry.password`
+    # for exactly that reason.
     - name: Deploy
       shell: bash
       run: |
@@ -77,8 +85,6 @@ runs:
             --set environment=${ENV} \
             --set spec.image=${{ inputs.registry }}/${{ inputs.image-name }}:${TAG} \
             --set meta.repository=${{ github.repository }} \
-            --set registry.username=${{ env.DOCKER_REGISTRY_USERNAME }} \
-            --set registry.password=${{ env.DOCKER_REGISTRY_PASSWORD }} \
             ${{ steps.dashboards.outputs.args }} \
             -n ${ENV}-${{ inputs.image-name }} \
             --create-namespace \
