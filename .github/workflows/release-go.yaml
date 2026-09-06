@@ -46,6 +46,7 @@ jobs:
           path: .artifacts
           key: artifacts-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-${{ github.ref_name }}
           restore-keys: |
+            artifacts-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-${{ github.ref_name }}-
             artifacts-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-
             artifacts-${{ runner.os }}-
 
@@ -59,11 +60,11 @@ jobs:
         run: make test
 
       - name: Save build artifacts
-        if: always() && steps.artifacts.outputs.cache-hit != 'true'
+        if: always()
         uses: actions/cache/save@v4
         with:
           path: .artifacts
-          key: ${{ steps.artifacts.outputs.cache-primary-key }}
+          key: ${{ steps.artifacts.outputs.cache-primary-key }}-${{ github.run_id }}
 
   release:
     name: Release
