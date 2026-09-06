@@ -27,6 +27,21 @@ jobs:
           node-version: ${{ inputs.node-version }}
           cache: npm
 
+      - name: Restore build artifacts
+        id: artifacts
+        uses: actions/cache/restore@v4
+        with:
+          path: .artifacts
+          # A branch warms from whatever ran last on the same lockfile —
+          # its own entry first, then any branch's (main, in practice),
+          # then any lockfile's. A repo that writes nothing under
+          # .artifacts simply misses, and a stale restore on such a repo
+          # is inert: no target reads it.
+          key: artifacts-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-${{ github.ref_name }}
+          restore-keys: |
+            artifacts-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-
+            artifacts-${{ runner.os }}-
+
       - name: Build
         run: make build
 
@@ -51,3 +66,16 @@ jobs:
 
       - name: Test
         run: make test
+
+      - name: Save build artifacts
+        # always(): a red run still compiled and still wrote a tsc
+        # buildinfo, and the retry that follows is exactly when the warm
+        # tree is worth most. cache-hit skips the upload GitHub would
+        # refuse anyway — a cache key is immutable once written.
+        if: always() && steps.artifacts.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .artifacts
+          # The restore step's own key, so install steps that touch a
+          # lockfile between the two cannot shift the hash under us.
+          key: ${{ steps.artifacts.outputs.cache-primary-key }}
