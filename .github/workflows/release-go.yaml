@@ -36,6 +36,19 @@ jobs:
         with:
           go-version: ${{ inputs.go-version }}
 
+      # This job runs the three gates itself rather than calling
+      # validate.yaml, so it carries its own copy of that workflow's
+      # .artifacts cache. Read the rationale there.
+      - name: Restore build artifacts
+        id: artifacts
+        uses: actions/cache/restore@v4
+        with:
+          path: .artifacts
+          key: artifacts-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-${{ github.ref_name }}
+          restore-keys: |
+            artifacts-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-
+            artifacts-${{ runner.os }}-
+
       - name: Build
         run: make build
 
@@ -44,6 +57,13 @@ jobs:
 
       - name: Test
         run: make test
+
+      - name: Save build artifacts
+        if: always() && steps.artifacts.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .artifacts
+          key: ${{ steps.artifacts.outputs.cache-primary-key }}
 
   release:
     name: Release
