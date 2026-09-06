@@ -39,17 +39,26 @@ must ship what the commit says and not what a cache remembers. So does
 `node_modules/`, which is the package manager's concern and is already
 handled by `setup-node`'s `cache: npm`.
 
-The key is `artifacts-<os>-<lockfile hash>-<ref name>`, over the lockfile of
-every toolchain the estate uses (`package-lock.json`, `bun.lock`,
-`pnpm-lock.yaml`, `go.sum`, `Cargo.lock`). It falls back first to the same
-lockfile on any ref, then to the OS alone — which is how a fresh branch, and
-a `v*` tag, start from the tree `main` last left.
+Every run saves under `artifacts-<os>-<lockfile hash>-<ref name>-<run id>` —
+the hash covering the lockfile of every toolchain the estate uses
+(`package-lock.json`, `bun.lock`, `pnpm-lock.yaml`, `go.sum`, `Cargo.lock`).
+A cache key is immutable once written, and a buildinfo changes with every
+commit, so one entry per run is what keeps the cache tracking HEAD rather
+than freezing at a branch's first green.
+
+Restoring is therefore all prefix match, in three widening steps: the same
+branch's most recent run, then the same lockfile on any branch, then the OS
+alone. That is how a fresh branch, and a `v*` tag, start from the tree `main`
+last left.
 
 Restore and save are separate steps so the save can run on `always()`: a red
-run still compiled, and its retry is what most wants a warm tree. A key is
-immutable once written, so a branch's entry is written once and then read
-until its lockfile changes — warm, and progressively less so, never wrong,
-since every tool that reads `.artifacts/` validates its own state.
+run still compiled, and its retry is what most wants a warm tree. It needs no
+cache-hit guard, since a key carrying the run id is new by construction.
+
+The cost is one entry per run against the repository's 10 GB budget, which
+GitHub evicts LRU — so the oldest runs fall off on their own, and what
+survives is the recent history that a restore would actually pick. Entries
+are small: tool state only, no `dist/`, no `node_modules/`.
 
 ## release-docker.yaml
 
