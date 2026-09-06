@@ -6,6 +6,10 @@ release. A repository carries two workflow files and a `Makefile` exposing
 `build`, `lint` and `test`, and inherits the whole pipeline from here. Change
 the pipeline once, every repository gets it.
 
+It inherits a warm build with it: CI caches `.artifacts/`, the one root the
+ecosystem keeps build and tool state under, and a repository that writes there
+compiles incrementally between runs — no other opt-in.
+
 ## Documentation
 
 [docs/README.md](docs/README.md) is the map of the corpus. Start at

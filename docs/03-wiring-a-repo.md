@@ -4,13 +4,35 @@ A consuming repository carries a `Makefile` and two workflow files, and
 inherits the whole build, test and release pipeline from here. Change the
 pipeline once, every repository gets it.
 
-Three rules hold everywhere:
+Four rules hold everywhere:
 
 - The `Makefile` exposes `build`, `lint` and `test`, whatever the toolchain.
 - Node.js 24, except where a workflow's own default says otherwise.
 - The release caller is named `release.yaml`, because npm provenance is
   configured against that filename. Never skip validation: every release
   workflow runs it first.
+- Build and tool state goes under `.artifacts/<tool>/`, gitignored. That is
+  the whole opt-in to CI caching — see below.
+
+## Caching your build
+
+CI restores and saves `.artifacts/` around the three gates
+([01-workflows.md](01-workflows.md)). A repository benefits by writing its
+tool state there and nowhere else:
+
+| Tool       | Where to point it                                                   |
+| ---------- | --------------------------------------------------------------------- |
+| tsc        | `tsBuildInfoFile: ".artifacts/tsc/tsconfig.tsbuildinfo"`             |
+| vitest     | `cacheDir: '.artifacts/vitest'`                                      |
+| knip       | `"cacheLocation": ".artifacts/knip"`                                 |
+| Next.js    | `distDir: '.artifacts/next'`                                         |
+| cargo      | `CARGO_TARGET_DIR=.artifacts/cargo`                                  |
+| playwright | `outputDir: '.artifacts/playwright'`                                 |
+
+`dist/` is not one of them: it stays where it is, and CI never caches it —
+a release ships what the commit says. Add `.artifacts/` to `.gitignore`;
+nothing under it is a source. A repository that opts out keeps cold runs and
+the workflow does not notice.
 
 ## npm package
 

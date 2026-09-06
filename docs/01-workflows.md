@@ -21,6 +21,36 @@ interface, which is all a repo has to expose whatever its toolchain.
 | `node-version` | `""`    | Installs Node with an npm cache. Empty skips the setup entirely.             |
 | `browsers`     | `false` | Provisions Playwright chromium before Test, cached by the version read from the caller's `package-lock.json`. For suites that render pages through `specification.website()` (`@jterrazz/test`). |
 
+### The `.artifacts` cache
+
+The three gates run against a restored `.artifacts/`, the single root every
+`@jterrazz` repository writes build and tool state under — `.artifacts/tsc/`
+for the incremental buildinfo, then `vitest/`, `knip/`, `next/`, `cargo/`,
+`playwright/`. One entry warms every toolchain in the repo at once, so a
+compile survives between runs instead of starting cold on every push.
+
+A consumer does nothing to benefit but point its tools there —
+[03-wiring-a-repo.md](03-wiring-a-repo.md). A repository that writes nothing
+under `.artifacts/` is unaffected: the restore misses, the save finds no path
+and logs a warning, and neither fails the job.
+
+Two things are deliberately not cached. `dist/` stays out, because a release
+must ship what the commit says and not what a cache remembers. So does
+`node_modules/`, which is the package manager's concern and is already
+handled by `setup-node`'s `cache: npm`.
+
+The key is `artifacts-<os>-<lockfile hash>-<ref name>`, over the lockfile of
+every toolchain the estate uses (`package-lock.json`, `bun.lock`,
+`pnpm-lock.yaml`, `go.sum`, `Cargo.lock`). It falls back first to the same
+lockfile on any ref, then to the OS alone — which is how a fresh branch, and
+a `v*` tag, start from the tree `main` last left.
+
+Restore and save are separate steps so the save can run on `always()`: a red
+run still compiled, and its retry is what most wants a warm tree. A key is
+immutable once written, so a branch's entry is written once and then read
+until its lockfile changes — warm, and progressively less so, never wrong,
+since every tool that reads `.artifacts/` validates its own state.
+
 ## release-docker.yaml
 
 Validates, builds and pushes the image, deploys it with Helm, then prunes old
@@ -59,12 +89,17 @@ Validates with the same three make targets, then cross-compiles. `binary-name`
 is required; `build-path` defaults to `.`, `go-version` to `1.24`, and
 `targets` to `darwin/arm64,darwin/amd64,linux/arm64,linux/amd64`.
 
+It spells the gates out in its own job instead of calling `validate.yaml`, and
+so carries its own copy of the `.artifacts` cache. The two are meant to stay
+identical: a change to one is a change to both.
+
 ## release-tauri.yaml
 
 Builds a Tauri app on a matrix of macOS and Linux targets, signs and notarizes
 it when the Apple secrets are present, and attaches the bundles to a GitHub
 Release. `project-path` (the directory containing `src-tauri/`) is required;
-`node-version` defaults to `22`.
+`node-version` defaults to `22`. It is the one workflow that runs no `make`
+gate, so it carries no `.artifacts` cache either.
 
 An app that ships a binary sidecar inside the bundle sets `go-version` and
 `pre-build-script`. The script runs after Node and Go are installed and before
