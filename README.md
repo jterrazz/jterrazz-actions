@@ -13,9 +13,9 @@ compiles incrementally between runs — no other opt-in.
 ## Documentation
 
 [docs/README.md](docs/README.md) is the map of the corpus. Start at
-[docs/03-wiring-a-repo.md](docs/03-wiring-a-repo.md) to set a repository up,
-[docs/01-workflows.md](docs/01-workflows.md) for what each workflow does, and
-[docs/04-secrets.md](docs/04-secrets.md) for what it needs to be given.
+[docs/05-wiring-a-repo.md](docs/05-wiring-a-repo.md) to set a repository up,
+[docs/01-architecture.md](docs/01-architecture.md) for what each workflow does, and
+[docs/06-secrets.md](docs/06-secrets.md) for what it needs to be given.
 
 The cluster these workflows deploy to is
 [jterrazz/jterrazz-infrastructure](https://github.com/jterrazz/jterrazz-infrastructure).
