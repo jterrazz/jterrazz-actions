@@ -24,7 +24,6 @@ repository.
 | What a workflow does, its inputs, its triggers, what happens inside a Docker release | `docs/01-architecture.md` |
 | Changing a workflow or an action                  | `docs/02-developing.md`          |
 | Proving a change before a consumer feels it        | `docs/03-testing.md`             |
-| Whether merging here deploys anything              | `docs/04-operating.md`           |
 | Setting a repository up: the two workflow files    | `docs/05-wiring-a-repo.md`       |
 | Infisical, the GitHub secrets, Tauri signing       | `docs/06-secrets.md`             |
 | The `application.yaml` schema a Docker app owns    | `jterrazz-infrastructure`, `kubernetes/charts/app/README.md` |
