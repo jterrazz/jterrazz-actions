@@ -17,7 +17,7 @@ Four rules hold everywhere:
 ## Caching your build
 
 CI restores and saves `.artifacts/` around the three gates
-([01-workflows.md](01-workflows.md)). A repository benefits by writing its
+([01-architecture.md](01-architecture.md)). A repository benefits by writing its
 tool state there and nowhere else:
 
 | Tool       | Where to point it                                                   |

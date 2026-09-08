@@ -1,7 +1,9 @@
-# The reusable workflows
+# Architecture
 
-Five workflows, called by every `@jterrazz` repository. One validates; four
-release, and each of them validates first.
+The shape of this repository is its catalogue: five reusable workflows in
+`.github/workflows/`, called by every `@jterrazz` repository, and the four
+composite actions in `actions/` that `release-docker.yaml` is built from. One
+workflow validates; four release, and each of them validates first.
 
 | Workflow                | Purpose                                                              | Trigger in the caller       |
 | ----------------------- | -------------------------------------------------------------------- | --------------------------- |
@@ -30,7 +32,7 @@ for the incremental buildinfo, then `vitest/`, `knip/`, `next/`, `cargo/`,
 compile survives between runs instead of starting cold on every push.
 
 A consumer does nothing to benefit but point its tools there —
-[03-wiring-a-repo.md](03-wiring-a-repo.md). A repository that writes nothing
+[05-wiring-a-repo.md](05-wiring-a-repo.md). A repository that writes nothing
 under `.artifacts/` is unaffected: the restore misses, the save finds no path
 and logs a warning, and neither fails the job.
 
@@ -67,7 +69,7 @@ tags. Its inputs beyond `image-name` (required) are `node-version`, `browsers`,
 `timeout` (default `5m`, cert-manager headroom on a first deploy),
 `manifest` (default `.infrastructure/application.yaml`), `dockerfile`,
 `build-args` and `keep-latest-versions` (default `3`). It requires the two
-Infisical secrets — [04-secrets.md](04-secrets.md).
+Infisical secrets — [06-secrets.md](06-secrets.md).
 
 Which environments a run deploys is resolved from the manifest's
 `environments` block:
@@ -85,6 +87,53 @@ Which environments a run deploys is resolved from the manifest's
 A monorepo app points `dockerfile:` and `manifest:` into its own directory and
 scopes its push trigger with `paths:`, keeping the build context at the repo
 root.
+
+### The composite actions it is built from
+
+`release-docker.yaml` is the one workflow with steps of its own beyond
+`validate.yaml`: four composite actions, each a directory under `actions/`
+holding one `action.yaml`.
+
+| Action                                                | Does                                                                                                |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| [`actions/infra-connect`](../actions/infra-connect)     | Fetches the secrets from Infisical, joins Tailscale as `tag:ci`, logs in to the container registry |
+| [`actions/docker-build`](../actions/docker-build)       | Builds and pushes the image with Buildx                                                            |
+| [`actions/docker-deploy`](../actions/docker-deploy)     | Deploys with `helm upgrade --install` against the shared app chart                                 |
+| [`actions/docker-cleanup`](../actions/docker-cleanup)   | Prunes old `v*` tags and runs registry garbage collection                                          |
+
+**infra-connect.** One step for the three connections a deploy needs. It
+fetches from Infisical project `jterrazz`, environment `prod`, path
+`/jterrazz-actions` (all three overridable), which exports the connectivity
+secrets as environment variables for the steps that follow.
+
+**docker-build.** Buildx with `network=host`, so buildkit resolves the
+registry's `*.ts.net` name through the runner's Tailscale resolver. Without it
+the push NXDOMAINs on the public CNAME chain.
+
+**docker-deploy.** `helm upgrade --install <env>-<image-name>` against
+`oci://registry.internal.jterrazz.com/charts/app`, with the caller's manifest
+as the values file, once per resolved deployment.
+
+It passes `meta.repository=${{ github.repository }}`, which through a reusable
+workflow is still the calling repository. The app chart stamps it on the
+Deployment as `app.jterrazz.com/repository`, and that annotation is the only
+place the cluster records which repository rebuilds a workload:
+`jterrazz-infrastructure`'s `make redeploy-apps` reads it off the live
+Deployments instead of holding a list that goes stale. An app that stops
+passing it drops out of the fleet rebuild.
+
+Any `*.json` file in a `dashboards/` directory beside the manifest is passed to
+the chart as `spec.dashboards.<name>`.
+
+The Helm timeout defaults to `5m`, which is headroom for cert-manager on a
+first deploy that introduces a new Certificate: DNS-01 against Cloudflare
+usually takes about a minute but queues when several apps roll out at once.
+Steady-state upgrades finish in seconds, so the higher default costs nothing.
+
+**docker-cleanup.** Deletes old `v*` registry tags beyond
+`keep-latest-versions`, over the registry's HTTP API with a netrc file rather
+than a `curl -u` argument — an argument sits in `ps` for anything else on the
+runner to read, for as long as the step runs.
 
 ## release-npm.yaml
 
@@ -114,3 +163,9 @@ An app that ships a binary sidecar inside the bundle sets `go-version` and
 `pre-build-script`. The script runs after Node and Go are installed and before
 `tauri-action`, so whatever it produces is on disk in time for the bundler to
 pick it up through the sidecar config.
+
+## Where `release-docker.yaml` deploys to
+
+The cluster is [jterrazz/jterrazz-infrastructure](https://github.com/jterrazz/jterrazz-infrastructure).
+What an app repository owes it, and the `application.yaml` schema
+`docker-deploy` renders, are that repository's documentation, not this one's.
