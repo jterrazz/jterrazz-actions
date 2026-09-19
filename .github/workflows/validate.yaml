@@ -5,7 +5,7 @@ on:
     inputs:
       node-version:
         description: Node.js version to install (leave empty to skip)
-        default: ""
+        default: "24"
         type: string
       browsers:
         description: Provision Playwright browsers before testing (chromium, cached by lockfile version)
