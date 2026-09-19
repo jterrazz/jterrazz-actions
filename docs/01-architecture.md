@@ -21,7 +21,7 @@ interface, which is all a repo has to expose whatever its toolchain.
 | Input          | Default | Effect                                                                       |
 | -------------- | ------- | ---------------------------------------------------------------------------- |
 | `node-version` | `'24'`  | Installs Node with an npm cache. An explicit empty string skips the setup entirely; a caller that passes a version keeps it. |
-| `browsers`     | `false` | Provisions Playwright chromium before Test, cached by the version read from the caller's `package-lock.json`. For suites that render pages through `specification.website()` (`@jterrazz/test`). |
+| `browsers`     | `false` | Provisions Playwright chromium before Test, cached by the version read from whichever lockfile the caller has — `package-lock.json`, `bun.lock`, or `pnpm-lock.yaml`, tried in that order. For suites that render pages through `specification.website()` (`@jterrazz/test`). |
 
 ### The `.artifacts` cache
 

@@ -50,7 +50,25 @@ jobs:
       - name: Resolve Playwright version
         if: inputs.browsers
         id: playwright
-        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/playwright'].version")" >> "$GITHUB_OUTPUT"
+        # A caller's toolchain decides which lockfile exists — try each in
+        # turn rather than assuming npm, so bun and pnpm repos cache the
+        # right browser build instead of silently skipping the cache.
+        run: |
+          version=""
+          if [ -f package-lock.json ]; then
+            version=$(node -p "require('./package-lock.json').packages['node_modules/playwright']?.version || ''")
+          fi
+          if [ -z "$version" ] && [ -f bun.lock ]; then
+            version=$(grep -oE '"playwright@[^"]+"' bun.lock | head -1 | sed -E 's/"playwright@([^"]+)"/\1/')
+          fi
+          if [ -z "$version" ] && [ -f pnpm-lock.yaml ]; then
+            version=$(grep -oE '/?playwright@[0-9][^:[:space:]]*' pnpm-lock.yaml | head -1 | sed -E 's#.*playwright@##')
+          fi
+          if [ -z "$version" ]; then
+            echo "::error::browsers: true but no lockfile (package-lock.json, bun.lock, pnpm-lock.yaml) names a playwright version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
         if: inputs.browsers
