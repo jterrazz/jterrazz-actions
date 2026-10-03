@@ -1,7 +1,7 @@
 # Testing
 
 Nothing mechanical proves a change here today: this repository has no
-package.json, no Makefile, and every one of its five workflows triggers only
+package.json, no Makefile, and every one of its six workflows triggers only
 on `workflow_call` — none of them runs on a push or a pull request to this
 repository's own `main`. Read that honestly rather than as a gap to explain
 away.

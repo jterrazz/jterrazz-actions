@@ -1,13 +1,15 @@
 # Architecture
 
-The shape of this repository is its catalogue: five reusable workflows in
+The shape of this repository is its catalogue: six reusable workflows in
 `.github/workflows/`, called by every `@jterrazz` repository, and the four
 composite actions in `actions/` that `release-docker.yaml` is built from. One
-workflow validates; four release, and each of them validates first.
+workflow validates, one measures the suite against mutants, four release, and
+each release validates first.
 
 | Workflow                | Purpose                                                              | Trigger in the caller       |
 | ----------------------- | -------------------------------------------------------------------- | --------------------------- |
 | `validate.yaml`         | `make build` + `make lint` + `make test`                             | push / PR to `main`         |
+| `mutation.yaml`         | `make mutation`, held to the score floor the repository committed     | a weekly `schedule`         |
 | `release-docker.yaml`   | Validate → Docker build → Helm deploy to the cluster → prune old tags | push to `main`, `v*` tags   |
 | `release-npm.yaml`      | Validate → `npm publish` with OIDC provenance                        | GitHub Release              |
 | `release-go.yaml`       | Cross-compile Go binaries → GitHub Release                           | `v*` tags                   |
@@ -61,6 +63,29 @@ The cost is one entry per run against the repository's 10 GB budget, which
 GitHub evicts LRU — so the oldest runs fall off on their own, and what
 survives is the recent history that a restore would actually pick. Entries
 are small: tool state only, no `dist/`, no `node_modules/`.
+
+## mutation.yaml
+
+Runs `make mutation` — for an `@jterrazz/typescript` project, `typescript
+mutation`: Stryker over the sources, then the score held to the floor the
+repository committed in `.jterrazz/baseline.json`. A score below the floor
+fails the job; one above raises the floor in the runner's checkout only,
+which the job never commits — the floor rises on a developer's machine, in a
+commit that carries it.
+
+| Input             | Default | Effect                                                                                     |
+| ----------------- | ------- | ------------------------------------------------------------------------------------------ |
+| `node-version`    | `'24'`  | As `validate.yaml`'s.                                                                       |
+| `timeout-minutes` | `360`   | The job's limit, GitHub's ceiling for a hosted runner: a cold run measures every mutant.     |
+
+It restores and saves `.artifacts/` under `validate.yaml`'s keys, so the
+incremental file Stryker keeps in `.artifacts/stryker/` survives between
+runs, and a run measures only the mutants whose source or tests changed. The
+HTML report is uploaded as the run's `mutation-report` artifact, red or
+green.
+
+Mutation takes hours where validation takes minutes, which is why it is a
+workflow of its own on a schedule, never a step of `validate.yaml`.
 
 ## release-docker.yaml
 
