@@ -19,9 +19,13 @@ Runs `make build`, `make lint`, `make test` in that order — the universal CI
 interface, which is all a repo has to expose whatever its toolchain. A
 `Makefile` that also has a `mutation` target runs it last: for an
 `@jterrazz/typescript` project, `typescript mutation`, which fails on any
-mutant a module test runs and none detects. Stryker's incremental file lives
-in `.artifacts/stryker/`, so the restored cache keeps a run to the mutants
-whose source or tests changed.
+mutant a test runs and none detects — the module tests over the sources they
+test, and the whole suite over the lines the push or the pull request
+changed that no module test runs. The step hands it that range as
+`TYPESCRIPT_MUTATION_SINCE` (the pull request's base, else the commit the
+push started from), which is why validate checks out the whole history.
+Stryker's incremental files live in `.artifacts/stryker/`, so the restored
+cache keeps a run to the mutants whose source or tests changed.
 
 | Input          | Default | Effect                                                                       |
 | -------------- | ------- | ---------------------------------------------------------------------------- |
