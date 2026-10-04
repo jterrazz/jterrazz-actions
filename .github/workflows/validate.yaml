@@ -112,3 +112,69 @@ jobs:
           # per run keeps the cache tracking HEAD; the restore's first
           # fallback picks the newest.
           key: ${{ steps.artifacts.outputs.cache-primary-key }}-${{ github.run_id }}
+
+  mobile-scope:
+    name: Mobile scope
+    # Who opts in and which changes run it: docs/01-architecture.md#the-mobile-job.
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Decide
+        id: scope
+        env:
+          BEFORE: ${{ github.event.before }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          config=jterrazz.config.ts
+          run=false
+          if [ -f "$config" ]; then
+            if grep -Eq "kind:[[:space:]]*['\"]mobile['\"]" "$config"; then
+              declared=app
+            elif grep -Eq "facet:[[:space:]]*['\"]mobile['\"]" "$config"; then
+              declared=facet
+            else
+              declared=
+            fi
+            since="${BASE:-$BEFORE}"
+            if [ -n "$declared" ]; then
+              if ! grep -q '^test-mobile:' Makefile; then
+                echo "::error::$config declares mobile, and the Makefile names no test-mobile target to run its specs on a simulator" >&2
+                exit 1
+              fi
+              if [ -z "$since" ] || ! git cat-file -e "$since" 2>/dev/null; then
+                run=true
+              elif [ "$declared" = app ]; then
+                git diff --quiet "$since" HEAD || run=true
+              elif git diff --name-only "$since" HEAD | grep -Eq '(^|/)(mobile|ios)([/.-]|$)|-mobile(/|$)'; then
+                run=true
+              fi
+            fi
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+  mobile:
+    name: Mobile
+    needs: mobile-scope
+    if: needs.mobile-scope.outputs.run == 'true'
+    # Xcode and the iOS simulators live on the macOS image alone.
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        if: inputs.node-version != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+
+      - name: Test on a simulator
+        run: make test-mobile
+

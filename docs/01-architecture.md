@@ -7,7 +7,7 @@ workflow validates; four release, and each of them validates first.
 
 | Workflow                | Purpose                                                              | Trigger in the caller       |
 | ----------------------- | -------------------------------------------------------------------- | --------------------------- |
-| `validate.yaml`         | `make build` + `make lint` + `make test` (+ `make mutation`)         | push / PR to `main`         |
+| `validate.yaml`         | `make build` + `make lint` + `make test` (+ `make mutation`, + `make test-mobile` on macOS) | push / PR to `main`         |
 | `release-docker.yaml`   | Validate → Docker build → Helm deploy to the cluster → prune old tags | push to `main`, `v*` tags   |
 | `release-npm.yaml`      | Validate → `npm publish` with OIDC provenance                        | GitHub Release              |
 | `release-go.yaml`       | Cross-compile Go binaries → GitHub Release                           | `v*` tags                   |
@@ -27,6 +27,27 @@ whose source or tests changed.
 | -------------- | ------- | ---------------------------------------------------------------------------- |
 | `node-version` | `'24'`  | Installs Node with an npm cache. An explicit empty string skips the setup entirely; a caller that passes a version keeps it. |
 | `browsers`     | `false` | Provisions Playwright chromium before Test, cached by the version read from whichever lockfile the caller has — `package-lock.json`, `bun.lock`, or `pnpm-lock.yaml`, tried in that order. For suites that render pages through `specification.website()` (`@jterrazz/test`). |
+
+### The mobile job
+
+A repository that declares mobile in its `jterrazz.config.ts` — `kind:
+'mobile'`, or a test project of `facet: 'mobile'` — gets a second job, on
+`macos-latest`, the one image with Xcode and the iOS simulators: `make
+test-mobile`, its mobile specs against a real simulator rather than the
+protocol double `make test` drives. The declaration is the whole opt-in; a
+repository that declares mobile and names no `test-mobile` target fails the
+job that decides, naming the target it owes.
+
+It runs when the push or the pull request changes what those specs drive:
+any change for a mobile app, and a path naming `mobile` or `ios` for a
+repository that only tests one (the mobile facet of `@jterrazz/test`). A
+macOS minute costs ten Linux ones, so a change that cannot alter a simulator
+run does not pay for one; a new branch, whose base it cannot diff, always
+runs. There is no weekly run: a schedule lives in each caller's workflow,
+which the declaration exists to spare, and the simulator a run boots is
+pinned in the repository, so only a change of it, of the app or of the facet
+moves the outcome — a drift of the runner image is caught by the next such
+change.
 
 ### The `.artifacts` cache
 
