@@ -6,7 +6,7 @@ carry to call them.
 
 | Chapter                                            | Holds                                                                                  |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| [01-architecture.md](01-architecture.md)           | The six reusable workflows and the four composite actions they are built from             |
+| [01-architecture.md](01-architecture.md)           | The five reusable workflows and the four composite actions they are built from            |
 | [02-developing.md](02-developing.md)               | Which file a change opens, what has to stay in step with it, and why no actionlint runs   |
 | [03-testing.md](03-testing.md)                     | How a change is proven before a consumer feels it — honestly, since nothing runs here on push |
 | [05-wiring-a-repo.md](05-wiring-a-repo.md)         | The two workflow files and the Makefile a consuming repository carries                    |

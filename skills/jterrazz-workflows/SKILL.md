@@ -1,6 +1,6 @@
 ---
 name: jterrazz-workflows
-description: Shared CI/CD workflows for jterrazz projects — validate, mutation, release-npm, release-docker, release-go, release-tauri. Use when setting up GitHub Actions, configuring CI, releasing, or debugging workflow failures in a jterrazz repo.
+description: Shared CI/CD workflows for jterrazz projects — validate, release-npm, release-docker, release-go, release-tauri. Use when setting up GitHub Actions, configuring CI, releasing, or debugging workflow failures in a jterrazz repo.
 ---
 
 # jterrazz-workflows
@@ -10,7 +10,7 @@ project validates and releases through. A repository carries two workflow files
 and a `Makefile` exposing `build`, `lint` and `test`, and inherits the pipeline.
 
 Callers reference `@main`, so a change here lands on every repository's next
-run. The workflows are `validate`, `mutation`, `release-npm`, `release-docker`,
+run. The workflows are `validate`, `release-npm`, `release-docker`,
 `release-go` and `release-tauri`; the composite actions they are built from are
 `infra-connect`, `docker-build`, `docker-deploy` and `docker-cleanup`.
 

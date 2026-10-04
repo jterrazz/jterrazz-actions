@@ -62,24 +62,6 @@ jobs:
     secrets: inherit
 ```
 
-## Weekly mutation run
-
-A repository whose `Makefile` exposes `mutation` adds a third caller. A
-reusable workflow cannot be scheduled itself, so the caller carries the
-`schedule`:
-
-```yaml
-# .github/workflows/mutation.yaml
-name: Mutation
-on:
-  schedule: [{ cron: "0 4 * * 1" }]
-  workflow_dispatch:
-jobs:
-  mutation:
-    uses: jterrazz/jterrazz-actions/.github/workflows/mutation.yaml@main
-    with: { node-version: "24" }
-```
-
 ## Docker app deployed to the cluster
 
 The validate caller adds `workflow_call:` to its triggers so the release

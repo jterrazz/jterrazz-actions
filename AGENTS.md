@@ -5,11 +5,10 @@ knowledge is in [docs/](docs/README.md).
 
 ## Mental model
 
-Six reusable workflows in `.github/workflows/`, built from four composite
+Five reusable workflows in `.github/workflows/`, built from four composite
 actions in `actions/`. A consuming repository owns two workflow files and a
 `Makefile` with `build`, `lint` and `test` — that make interface is the whole
-contract on the caller's side, whatever its toolchain; a caller of the weekly
-`mutation.yaml` adds a third file and a `mutation` target.
+contract on the caller's side, whatever its toolchain.
 
 Nothing here is deployed. Editing a workflow changes every repository's next
 run, on `@main`, with no version to bump and no release to cut: callers pin the
