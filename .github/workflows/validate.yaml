@@ -87,6 +87,15 @@ jobs:
       - name: Test
         run: make test
 
+      - name: Mutation
+        # Only a Makefile with a `mutation` target runs it; the restored
+        # .artifacts/ carries Stryker's incremental file, so a run measures
+        # only the mutants whose source or tests changed.
+        run: |
+          if grep -q '^mutation:' Makefile; then
+            make mutation
+          fi
+
       - name: Save build artifacts
         # always(): a red run still compiled and still wrote a tsc
         # buildinfo, and the retry that follows is exactly when the warm

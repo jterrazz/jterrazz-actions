@@ -7,7 +7,7 @@ workflow validates; four release, and each of them validates first.
 
 | Workflow                | Purpose                                                              | Trigger in the caller       |
 | ----------------------- | -------------------------------------------------------------------- | --------------------------- |
-| `validate.yaml`         | `make build` + `make lint` + `make test`                             | push / PR to `main`         |
+| `validate.yaml`         | `make build` + `make lint` + `make test` (+ `make mutation`)         | push / PR to `main`         |
 | `release-docker.yaml`   | Validate → Docker build → Helm deploy to the cluster → prune old tags | push to `main`, `v*` tags   |
 | `release-npm.yaml`      | Validate → `npm publish` with OIDC provenance                        | GitHub Release              |
 | `release-go.yaml`       | Cross-compile Go binaries → GitHub Release                           | `v*` tags                   |
@@ -16,7 +16,12 @@ workflow validates; four release, and each of them validates first.
 ## validate.yaml
 
 Runs `make build`, `make lint`, `make test` in that order — the universal CI
-interface, which is all a repo has to expose whatever its toolchain.
+interface, which is all a repo has to expose whatever its toolchain. A
+`Makefile` that also has a `mutation` target runs it last: for an
+`@jterrazz/typescript` project, `typescript mutation`, which fails on any
+mutant a module test runs and none detects. Stryker's incremental file lives
+in `.artifacts/stryker/`, so the restored cache keeps a run to the mutants
+whose source or tests changed.
 
 | Input          | Default | Effect                                                                       |
 | -------------- | ------- | ---------------------------------------------------------------------------- |
