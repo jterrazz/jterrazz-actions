@@ -173,7 +173,7 @@ jobs:
                 run=true
               elif [ "$declared" = app ]; then
                 git diff --quiet "$since" HEAD || run=true
-              elif git diff --name-only "$since" HEAD | grep -Eq '(^|/)(mobile|ios)([/.-]|$)|-mobile(/|$)'; then
+              elif git diff --name-only "$since" HEAD | grep -Eq '(^|/)(mobile|ios)([/.-]|$)|-mobile(/|$)|^(package\.json|package-lock\.json|bun\.lock|pnpm-lock\.yaml)$'; then
                 run=true
               fi
             fi
@@ -184,11 +184,24 @@ jobs:
     name: Mobile
     needs: mobile-scope
     if: needs.mobile-scope.outputs.run == 'true'
-    # Xcode and the iOS simulators live on the macOS image alone.
-    runs-on: macos-latest
+    # Xcode and the iOS simulators live on the macOS image alone. Image and
+    # Xcode are pinned together with the simulator a repository pins (iOS
+    # 26.5): a drift of `macos-latest` would fail the job with no change of
+    # the repository's.
+    runs-on: macos-26
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Select Xcode
+        env:
+          XCODE: /Applications/Xcode_26.5.app
+        run: |
+          if [ ! -d "$XCODE" ]; then
+            echo "::error::the runner image holds no $XCODE, the Xcode whose iOS 26.5 simulator the mobile specs pin — it holds: $(find /Applications -maxdepth 1 -name "Xcode_*.app" | tr "\n" " ")" >&2
+            exit 1
+          fi
+          sudo xcode-select --switch "$XCODE"
 
       - name: Setup Node.js
         if: inputs.node-version != ''

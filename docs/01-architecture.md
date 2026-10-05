@@ -42,22 +42,28 @@ cache keeps a run to the mutants whose source or tests changed.
 
 A repository that declares mobile in its `jterrazz.config.ts` — `kind:
 'mobile'`, or a test project of `facet: 'mobile'` — gets a second job, on
-`macos-latest`, the one image with Xcode and the iOS simulators: `make
-test-mobile`, its mobile specs against a real simulator rather than the
-protocol double `make test` drives. The declaration is the whole opt-in; a
-repository that declares mobile and names no `test-mobile` target fails the
-job that decides, naming the target it owes.
+`macos-26` with Xcode 26.5 selected, the image and the Xcode whose iOS 26.5
+simulator the mobile specs pin: `make test-mobile`, its mobile specs against a
+real simulator rather than the protocol double `make test` drives. The image
+is pinned, not `macos-latest`, so a drift of the runner fails no run that no
+change caused; moving the simulator a repository pins moves this pin with it,
+and a missing Xcode fails the job naming the ones the image holds. The
+declaration is the whole opt-in; a repository that declares mobile and names
+no `test-mobile` target fails the job that decides, naming the target it
+owes.
 
 It runs when the push or the pull request changes what those specs drive:
-any change for a mobile app, and a path naming `mobile` or `ios` for a
-repository that only tests one (the mobile facet of `@jterrazz/test`). A
-macOS minute costs ten Linux ones, so a change that cannot alter a simulator
-run does not pay for one; a new branch, whose base it cannot diff, always
-runs. There is no weekly run: a schedule lives in each caller's workflow,
-which the declaration exists to spare, and the simulator a run boots is
-pinned in the repository, so only a change of it, of the app or of the facet
-moves the outcome — a drift of the runner image is caught by the next such
-change.
+any change for a mobile app, and, for a repository that only tests one (the
+mobile facet of `@jterrazz/test`), a path naming `mobile` or `ios` or a
+change of its dependencies — `package.json` or a lockfile, where the
+simulator's client is pinned. A macOS minute costs ten Linux ones, so a
+change that cannot alter a simulator run does not pay for one; a new branch,
+whose base it cannot diff, always runs. The shared workflow runs on no
+schedule, which the declaration exists to spare its callers. The one thing
+the path filter cannot see is a facet's shared core — the runner code the
+mobile facet runs on beside every other — so the repository that carries one
+schedules its own caller weekly (`@jterrazz/test`), and a run with no commit
+to diff from always runs the job.
 
 ### The `.artifacts` cache
 
