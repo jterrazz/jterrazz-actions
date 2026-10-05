@@ -23,7 +23,13 @@ mutant a test runs and none detects — the module tests over the sources they
 test, and the whole suite over the lines the push or the pull request
 changed that no module test runs. The step hands it that range as
 `TYPESCRIPT_MUTATION_SINCE` (the pull request's base, else the commit the
-push started from), which is why validate checks out the whole history.
+push started from), which is why validate checks out the whole history. The
+toolchain refuses a commit the clone does not hold, so when the push
+started from one it cannot reach — a force-push dropped it, or the zero
+commit of a branch's first push — the step measures from the fork point
+with the default branch, or else the parent commit, and says which; an
+event that carries neither (a schedule, a manual run) leaves the variable
+blank, and the working tree is measured against `HEAD`.
 Stryker's incremental files live in `.artifacts/stryker/`, so the restored
 cache keeps a run to the mutants whose source or tests changed.
 

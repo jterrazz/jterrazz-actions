@@ -96,12 +96,26 @@ jobs:
         # .artifacts/ carries Stryker's incremental file, so a run measures
         # only the mutants whose source or tests changed. The whole suite
         # measures the lines this push or pull request changed, since the
-        # commit named here.
+        # commit it started from — which the toolchain refuses when the
+        # clone lacks it, so a force-push or a branch's first push (the zero
+        # commit) measures from the fork point with the default branch, or
+        # the parent commit, named in the log.
         env:
-          TYPESCRIPT_MUTATION_SINCE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           if grep -q '^mutation:' Makefile; then
-            make mutation
+            since="${BASE:-$BEFORE}"
+            if [ -n "$since" ] && ! git cat-file -e "$since^{commit}" 2>/dev/null; then
+              fallback=$(git merge-base HEAD "origin/$DEFAULT_BRANCH" 2>/dev/null || true)
+              if [ -z "$fallback" ] || [ "$fallback" = "$(git rev-parse HEAD)" ]; then
+                fallback=$(git rev-parse --verify --quiet HEAD~1 || true)
+              fi
+              echo "The clone holds no commit $since: the whole suite measures the change since ${fallback:-HEAD}."
+              since="$fallback"
+            fi
+            TYPESCRIPT_MUTATION_SINCE="$since" make mutation
           fi
 
       - name: Save build artifacts
