@@ -10,6 +10,9 @@ actions in `actions/`. A consuming repository owns two workflow files and a
 `Makefile` with `build`, `lint` and `test` — that make interface is the whole
 contract on the caller's side, whatever its toolchain.
 
+`lint.yaml` is the one workflow that is this repository's own: it runs `make lint`,
+which judges the shape of `docs/`.
+
 Nothing here is deployed. Editing a workflow changes every repository's next
 run, on `@main`, with no version to bump and no release to cut: callers pin the
 branch, not a tag.
@@ -18,11 +21,11 @@ branch, not a tag.
 
 | Question                                                    | Chapter                                                  |
 | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| What does each workflow do, and what does it take?          | [docs/01-architecture.md](docs/01-architecture.md)          |
-| I am changing a workflow or an action                       | [docs/02-developing.md](docs/02-developing.md)              |
-| How do I prove a change before a consumer feels it?          | [docs/03-testing.md](docs/03-testing.md)                    |
-| I am setting a repository up to use these                    | [docs/05-wiring-a-repo.md](docs/05-wiring-a-repo.md)        |
-| Which secrets, and where do they come from?                  | [docs/06-secrets.md](docs/06-secrets.md)                    |
+| What does each workflow do, and what does it take?          | [docs/concepts/architecture.md](docs/concepts/architecture.md)          |
+| I am changing a workflow or an action                       | [docs/guides/develop.md](docs/guides/develop.md)              |
+| How do I prove a change before a consumer feels it?          | [docs/guides/test.md](docs/guides/test.md)                    |
+| I am setting a repository up to use these                    | [docs/guides/wire-a-repository.md](docs/guides/wire-a-repository.md)        |
+| Which secrets, and where do they come from?                  | [docs/reference/secrets.md](docs/reference/secrets.md)                    |
 
 The chart a Docker release deploys through, and the manifest an app owns, are
 `jterrazz-infrastructure`'s documentation, not this repository's.

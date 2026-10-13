@@ -1,7 +1,7 @@
 # Developing
 
 There is no package to install and no build to run here: a change is a hand
-edit to a workflow's or an action's YAML, and this chapter says which file
+edit to a workflow's or an action's YAML, and this guide says which file
 that edit opens and what else it has to stay in step with.
 
 ## Which file a change opens
@@ -13,7 +13,7 @@ that edit opens and what else it has to stay in step with.
 | `npm publish` behaviour                                        | `.github/workflows/release-npm.yaml`                                    |
 | The Go cross-compile matrix                                    | `.github/workflows/release-go.yaml`                                     |
 | Tauri build, signing and notarization                          | `.github/workflows/release-tauri.yaml`                                  |
-| What a chapter tells a reader                                  | `docs/*`, then the routing tables in `AGENTS.md` and `skills/jterrazz-workflows/SKILL.md` that mirror it |
+| What a page tells a reader                                  | `docs/*`, then the routing tables in `AGENTS.md` and `skills/jterrazz-workflows/SKILL.md` that mirror it |
 
 ## What a change owes
 
@@ -23,21 +23,21 @@ other, and a change to the source is not a change to its copy on its own:
 - **`release-go.yaml` spells the three gates and the `.artifacts` cache out in
   its own job instead of calling `validate.yaml`**, so that Go's own toolchain
   can join the same cache — see the `release-go.yaml` section of
-  [01-architecture.md](01-architecture.md). The two are meant to stay
+  [architecture](../concepts/architecture.md). The two are meant to stay
   identical; a change to one is a change to both.
 - **`AGENTS.md`'s routing table, `skills/jterrazz-workflows/SKILL.md`'s routing
-  table and `docs/README.md`'s map name the same chapters.** A chapter
-  renumbered in one is renumbered in the other two, by hand — there is no
+  table and `docs/README.md`'s map name the same pages.** A page
+  renamed in one is renamed in the other two, by hand — there is no
   compiler here to catch the two that were forgotten.
 
 ## No actionlint runs here
 
-Nothing under `.github/` or `actions/` invokes `actionlint`, or any other
-schema checker, against this repository's own YAML — a change is reviewed by
+Beyond `make lint` ([test.md](test.md)), which judges `docs/` only, nothing
+under `.github/` or `actions/` invokes `actionlint`, or any other schema checker, against this repository's own YAML — a change is reviewed by
 eye, against the four rules a consuming repository is held to
-([05-wiring-a-repo.md](05-wiring-a-repo.md)), and against the invariants this
-chapter names. What actually catches a malformed workflow, and when, is
-[03-testing.md](03-testing.md).
+([wire-a-repository.md](wire-a-repository.md)), and against the invariants this
+guide names. What actually catches a malformed workflow, and when, is
+[test.md](test.md).
 
 ## The comment a step earns
 

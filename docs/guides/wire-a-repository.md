@@ -17,12 +17,12 @@ Four rules hold everywhere:
 - A repository whose `jterrazz.config.ts` declares mobile — `kind: 'mobile'`,
   or a `facet: 'mobile'` test project — exposes `test-mobile`, which validate
   runs on macOS when a change reaches the mobile specs
-  ([01-architecture.md](01-architecture.md#the-mobile-job)).
+  ([architecture](../concepts/architecture.md#the-mobile-job)).
 
 ## Caching your build
 
 CI restores and saves `.artifacts/` around the three gates
-([01-architecture.md](01-architecture.md)). A repository benefits by writing its
+([the cache](../concepts/artifacts-cache.md)). A repository benefits by writing its
 tool state there and nowhere else:
 
 | Tool       | Where to point it                                                   |

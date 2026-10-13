@@ -65,44 +65,7 @@ mobile facet runs on beside every other — so the repository that carries one
 schedules its own caller weekly (`@jterrazz/test`), and a run with no commit
 to diff from always runs the job.
 
-### The `.artifacts` cache
-
-The three gates run against a restored `.artifacts/`, the single root every
-`@jterrazz` repository writes build and tool state under — `.artifacts/tsc/`
-for the incremental buildinfo, then `vitest/`, `knip/`, `next/`, `cargo/`,
-`playwright/`. One entry warms every toolchain in the repo at once, so a
-compile survives between runs instead of starting cold on every push.
-
-A consumer does nothing to benefit but point its tools there —
-[05-wiring-a-repo.md](05-wiring-a-repo.md). A repository that writes nothing
-under `.artifacts/` is unaffected: the restore misses, the save finds no path
-and logs a warning, and neither fails the job.
-
-Two things are deliberately not cached. `dist/` stays out, because a release
-must ship what the commit says and not what a cache remembers. So does
-`node_modules/`, which is the package manager's concern and is already
-handled by `setup-node`'s `cache: npm`.
-
-Every run saves under `artifacts-<os>-<lockfile hash>-<ref name>-<run id>` —
-the hash covering the lockfile of every toolchain the estate uses
-(`package-lock.json`, `bun.lock`, `pnpm-lock.yaml`, `go.sum`, `Cargo.lock`).
-A cache key is immutable once written, and a buildinfo changes with every
-commit, so one entry per run is what keeps the cache tracking HEAD rather
-than freezing at a branch's first green.
-
-Restoring is therefore all prefix match, in three widening steps: the same
-branch's most recent run, then the same lockfile on any branch, then the OS
-alone. That is how a fresh branch, and a `v*` tag, start from the tree `main`
-last left.
-
-Restore and save are separate steps so the save can run on `always()`: a red
-run still compiled, and its retry is what most wants a warm tree. It needs no
-cache-hit guard, since a key carrying the run id is new by construction.
-
-The cost is one entry per run against the repository's 10 GB budget, which
-GitHub evicts LRU — so the oldest runs fall off on their own, and what
-survives is the recent history that a restore would actually pick. Entries
-are small: tool state only, no `dist/`, no `node_modules/`.
+The `.artifacts/` cache the three gates run against is its own concept: [artifacts-cache.md](artifacts-cache.md).
 
 ## release-docker.yaml
 
@@ -111,7 +74,7 @@ tags. Its inputs beyond `image-name` (required) are `node-version`, `browsers`,
 `timeout` (default `5m`, cert-manager headroom on a first deploy),
 `manifest` (default `.infrastructure/application.yaml`), `dockerfile`,
 `build-args` and `keep-latest-versions` (default `3`). It requires the two
-Infisical secrets — [06-secrets.md](06-secrets.md).
+Infisical secrets — [secrets.md](../reference/secrets.md).
 
 Which environments a run deploys is resolved from the manifest's
 `environments` block:
@@ -138,10 +101,10 @@ holding one `action.yaml`.
 
 | Action                                                | Does                                                                                                |
 | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| [`actions/infra-connect`](../actions/infra-connect)     | Fetches the secrets from Infisical, joins Tailscale as `tag:ci`, logs in to the container registry |
-| [`actions/docker-build`](../actions/docker-build)       | Builds and pushes the image with Buildx                                                            |
-| [`actions/docker-deploy`](../actions/docker-deploy)     | Deploys with `helm upgrade --install` against the shared app chart                                 |
-| [`actions/docker-cleanup`](../actions/docker-cleanup)   | Prunes old `v*` tags and runs registry garbage collection                                          |
+| [`actions/infra-connect`](../../actions/infra-connect)     | Fetches the secrets from Infisical, joins Tailscale as `tag:ci`, logs in to the container registry |
+| [`actions/docker-build`](../../actions/docker-build)       | Builds and pushes the image with Buildx                                                            |
+| [`actions/docker-deploy`](../../actions/docker-deploy)     | Deploys with `helm upgrade --install` against the shared app chart                                 |
+| [`actions/docker-cleanup`](../../actions/docker-cleanup)   | Prunes old `v*` tags and runs registry garbage collection                                          |
 
 **infra-connect.** One step for the three connections a deploy needs. It
 fetches from Infisical project `jterrazz`, environment `prod`, path

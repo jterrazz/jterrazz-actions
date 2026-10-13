@@ -21,11 +21,11 @@ repository.
 
 | Need                                             | Read                            |
 | -------------------------------------------------- | --------------------------------- |
-| What a workflow does, its inputs, its triggers, what happens inside a Docker release | `docs/01-architecture.md` |
-| Changing a workflow or an action                  | `docs/02-developing.md`          |
-| Proving a change before a consumer feels it        | `docs/03-testing.md`             |
-| Setting a repository up: the two workflow files    | `docs/05-wiring-a-repo.md`       |
-| Infisical, the GitHub secrets, Tauri signing       | `docs/06-secrets.md`             |
+| What a workflow does, its inputs, its triggers, what happens inside a Docker release | `docs/concepts/architecture.md` |
+| Changing a workflow or an action                  | `docs/guides/develop.md`          |
+| Proving a change before a consumer feels it        | `docs/guides/test.md`             |
+| Setting a repository up: the two workflow files    | `docs/guides/wire-a-repository.md` |
+| Infisical, the GitHub secrets, Tauri signing       | `docs/reference/secrets.md`      |
 | The `application.yaml` schema a Docker app owns    | `jterrazz-infrastructure`, `kubernetes/charts/app/README.md` |
 
 ## Always
