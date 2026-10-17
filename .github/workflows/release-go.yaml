@@ -36,7 +36,7 @@ jobs:
         with:
           go-version: ${{ inputs.go-version }}
 
-      # This job runs the three gates itself rather than calling
+      # invariant: this job runs the three gates itself rather than calling
       # validate.yaml, so it carries its own copy of that workflow's
       # .artifacts cache. Read the rationale there.
       - name: Restore build artifacts

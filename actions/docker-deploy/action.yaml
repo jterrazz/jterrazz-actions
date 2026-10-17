@@ -16,7 +16,7 @@ inputs:
     default: ".infrastructure/application.yaml"
   timeout:
     description: Helm deploy timeout
-    # 5m gives cert-manager headroom on the first deploy that introduces
+    # value: 5m gives cert-manager headroom on the first deploy that introduces
     # a new Certificate (DNS-01 against Cloudflare typically takes ~60s
     # but can queue when several apps roll out simultaneously). Steady-
     # state upgrades that don't rename a cert finish in seconds, so the
@@ -59,7 +59,7 @@ runs:
         fi
         echo "args=$DASHBOARD_ARGS" >> "$GITHUB_OUTPUT"
 
-    # `github.repository` is the CALLING repo even through the reusable
+    # invariant: `github.repository` is the CALLING repo even through the reusable
     # workflow, which is the point: the app chart stamps it on the Deployment as
     # `app.jterrazz.com/repository`, and that annotation is the only place the
     # cluster records which repo rebuilds a workload. jterrazz-infrastructure's

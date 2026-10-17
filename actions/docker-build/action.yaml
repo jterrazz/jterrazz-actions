@@ -34,7 +34,7 @@ runs:
 
     - name: Setup Buildx
       uses: docker/setup-buildx-action@v3
-      # network=host makes the buildkit container share the runner's
+      # outside: network=host makes the buildkit container share the runner's
       # network namespace, including its Tailscale interface. Without
       # this, buildx uses Docker's default bridge with Azure DNS, which
       # cannot resolve registry.internal.jterrazz.com (the public CNAME points

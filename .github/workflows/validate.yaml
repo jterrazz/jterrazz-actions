@@ -20,7 +20,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # The mutation step diffs the tree against the commit the push or
+          # invariant: the mutation step diffs the tree against the commit the push or
           # the pull request started from.
           fetch-depth: 0
 
@@ -36,7 +36,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .artifacts
-          # Every run saves under its own run_id, so the fallbacks are
+          # invariant: every run saves under its own run_id, so the fallbacks are
           # what actually restores: this branch's most recent run first,
           # then any branch's on the same lockfile (main, in practice),
           # then any lockfile's. A repo that writes nothing under
@@ -54,7 +54,7 @@ jobs:
       - name: Resolve Playwright version
         if: inputs.browsers
         id: playwright
-        # A caller's toolchain decides which lockfile exists — try each in
+        # invariant: a caller's toolchain decides which lockfile exists — try each in
         # turn rather than assuming npm, so bun and pnpm repos cache the
         # right browser build instead of silently skipping the cache.
         run: |
@@ -92,7 +92,7 @@ jobs:
         run: make test
 
       - name: Mutation
-        # Only a Makefile with a `mutation` target runs it; the restored
+        # invariant: only a Makefile with a `mutation` target runs it; the restored
         # .artifacts/ carries Stryker's incremental file, so a run measures
         # only the mutants whose source or tests changed. The whole suite
         # measures the lines this push or pull request changed, since the
@@ -119,7 +119,7 @@ jobs:
           fi
 
       - name: Save build artifacts
-        # always(): a red run still compiled and still wrote a tsc
+        # value: always(): a red run still compiled and still wrote a tsc
         # buildinfo, and the retry that follows is exactly when the warm
         # tree is worth most. No cache-hit guard is needed — the run_id
         # below makes this key new on every run, so it is never a hit.
@@ -127,7 +127,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .artifacts
-          # The restore step's own key, so install steps that touch a
+          # invariant: the restore step's own key, so install steps that touch a
           # lockfile between the two cannot shift the hash under us —
           # plus the run_id, because a cache key is immutable once
           # written and a buildinfo changes with every commit. One entry
@@ -137,7 +137,6 @@ jobs:
 
   mobile-scope:
     name: Mobile scope
-    # Who opts in and which changes run it: docs/01-architecture.md#the-mobile-job.
     runs-on: ubuntu-latest
     outputs:
       run: ${{ steps.scope.outputs.run }}
@@ -184,7 +183,7 @@ jobs:
     name: Mobile
     needs: mobile-scope
     if: needs.mobile-scope.outputs.run == 'true'
-    # Xcode and the iOS simulators live on the macOS image alone. Image and
+    # hazard: Xcode and the iOS simulators live on the macOS image alone. Image and
     # Xcode are pinned together with the simulator a repository pins (iOS
     # 26.5): a drift of `macos-latest` would fail the job with no change of
     # the repository's.
