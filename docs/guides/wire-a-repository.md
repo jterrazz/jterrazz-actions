@@ -92,6 +92,7 @@ on:
     branches: [main]
     tags: ["v*"]
   workflow_dispatch:
+
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false

@@ -3,19 +3,21 @@
 Almost nothing mechanical proves a change here: every one of the five
 workflows triggers only on `workflow_call`, so none of them runs on a push or a
 pull request to this repository's own `main`. The one gate that does run is
-`make lint`, which judges the shape of `docs/` and nothing else. Read that
+`make lint`, which judges the prose, the comments, the names, the secrets and the shape of `docs/`, and never what a workflow does. Read that
 honestly rather than as a gap to explain away.
 
 ## What `make lint` proves
 
-`make lint` runs `typescript docs-layout .` from `@jterrazz/typescript`: the
+`make lint` runs `typescript check` from `@jterrazz/typescript`, and
+`jterrazz.config.ts` declares this repository `content`: it has no code of the
+toolchain's, so the check runs the seven passes that mean something there. The
 manual is cut into `start/`, `guides/`, `concepts/`, `reference/` and
-`decisions/`, the map links only its own pages, and the required pages exist.
+`decisions/`, the map links only its own pages, and the required pages exist;
+the Markdown is short-blocked and its links resolve; every comment in the
+workflows and actions states its kind; the names and the secrets are judged.
 It needs no `package.json` — `npx` fetches the toolchain — and
 `.github/workflows/lint.yaml` runs it on every push and pull request. It does
-not read the YAML under `.github/` or `actions/`, nor the prose, the names or
-the secrets of this repository: the toolchain's other passes are bound to an
-npm project, and this one is not.
+not parse the YAML as a workflow: GitHub does that, in the caller's run.
 
 ## What actually catches a mistake
 

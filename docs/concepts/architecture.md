@@ -21,7 +21,9 @@ interface, which is all a repo has to expose whatever its toolchain. A
 `@jterrazz/typescript` project, `typescript mutation`, which fails on any
 mutant a test runs and none detects — the module tests over the sources they
 test, and the whole suite over the lines the push or the pull request
-changed that no module test runs. The step hands it that range as
+changed that no module test runs.
+
+The step hands it that range as
 `TYPESCRIPT_MUTATION_SINCE` (the pull request's base, else the commit the
 push started from), which is why validate checks out the whole history. The
 toolchain refuses a commit the clone does not hold, so when the push
