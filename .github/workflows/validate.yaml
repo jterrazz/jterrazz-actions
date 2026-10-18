@@ -54,7 +54,7 @@ jobs:
       - name: Resolve Playwright version
         if: inputs.browsers
         id: playwright
-        # invariant: a caller's toolchain decides which lockfile exists — try each in
+        # invariant: a caller's toolchain decides which lockfile exists, so try each in
         # turn rather than assuming npm, so bun and pnpm repos cache the
         # right browser build instead of silently skipping the cache.
         run: |
@@ -96,7 +96,7 @@ jobs:
         # .artifacts/ carries Stryker's incremental file, so a run measures
         # only the mutants whose source or tests changed. The whole suite
         # measures the lines this push or pull request changed, since the
-        # commit it started from — which the toolchain refuses when the
+        # commit it started from, which the toolchain refuses when the
         # clone lacks it, so a force-push or a branch's first push (the zero
         # commit) measures from the fork point with the default branch, or
         # the parent commit, named in the log.
@@ -121,14 +121,14 @@ jobs:
       - name: Save build artifacts
         # value: always(): a red run still compiled and still wrote a tsc
         # buildinfo, and the retry that follows is exactly when the warm
-        # tree is worth most. No cache-hit guard is needed — the run_id
+        # tree is worth most. No cache-hit guard is needed: the run_id
         # below makes this key new on every run, so it is never a hit.
         if: always()
         uses: actions/cache/save@v4
         with:
           path: .artifacts
           # invariant: the restore step's own key, so install steps that touch a
-          # lockfile between the two cannot shift the hash under us —
+          # lockfile between the two cannot shift the hash under us,
           # plus the run_id, because a cache key is immutable once
           # written and a buildinfo changes with every commit. One entry
           # per run keeps the cache tracking HEAD; the restore's first
@@ -197,7 +197,7 @@ jobs:
           XCODE: /Applications/Xcode_26.5.app
         run: |
           if [ ! -d "$XCODE" ]; then
-            echo "::error::the runner image holds no $XCODE, the Xcode whose iOS 26.5 simulator the mobile specs pin — it holds: $(find /Applications -maxdepth 1 -name "Xcode_*.app" | tr "\n" " ")" >&2
+            echo "::error::the runner image holds no $XCODE, the Xcode whose iOS 26.5 simulator the mobile specs pin; it holds: $(find /Applications -maxdepth 1 -name "Xcode_*.app" | tr "\n" " ")" >&2
             exit 1
           fi
           sudo xcode-select --switch "$XCODE"

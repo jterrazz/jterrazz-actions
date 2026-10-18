@@ -88,7 +88,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # outside: Tauri auto-updater signing (optional — left empty if the
+          # outside: Tauri auto-updater signing (optional, left empty if the
           # consumer doesn't ship updates).
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -99,7 +99,7 @@ jobs:
           # MUST be an app-specific password, not the real Apple ID
           # password).
           #
-          # ⚠️ Gotcha: the .p12 must be exported with
+          # Gotcha: the .p12 must be exported with
           #     openssl pkcs12 -export -legacy
           # Modern openssl 3.x defaults to PBKDF2 + AES which
           # `security import` on macOS can't read. The error message

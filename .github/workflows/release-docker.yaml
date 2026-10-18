@@ -17,7 +17,7 @@ on:
         type: boolean
       timeout:
         description: Helm deploy timeout
-        # value: matches docker-deploy's own default — see that action.yaml for
+        # value: matches docker-deploy's own default; see that action.yaml for
         # the cert-manager headroom rationale (5m covers ACME issuance
         # when multiple apps roll new Certificates simultaneously).
         default: "5m"

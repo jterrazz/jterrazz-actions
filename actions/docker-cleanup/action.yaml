@@ -22,7 +22,7 @@ runs:
         # `ps` by anything else on the runner for as long as curl runs, and
         # this step runs curl once per tag. The values are read from the
         # environment infra-connect exported, so they are not interpolated
-        # into this script's text either — the only copy is the 0600 file
+        # into this script's text either: the only copy is the 0600 file
         # below, and it dies with the step.
         NETRC=$(mktemp)
         trap 'rm -f "$NETRC"' EXIT

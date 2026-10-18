@@ -64,11 +64,11 @@ runs:
     # `app.jterrazz.com/repository`, and that annotation is the only place the
     # cluster records which repo rebuilds a workload. jterrazz-infrastructure's
     # `make redeploy-apps` reads it off the live Deployments instead of holding
-    # a list of repos that goes stale — so an app that stops passing this drops
+    # a list of repos that goes stale, so an app that stops passing this drops
     # out of the fleet rebuild.
     #
-    # The chart is handed NO credential. `registry-credentials` — the pull
-    # secret every pod on our registry mounts — is synced into the namespace by
+    # The chart is handed NO credential. `registry-credentials` (the pull
+    # secret every pod on our registry mounts) is synced into the namespace by
     # the Infisical operator from /jterrazz-actions, the same path this job read
     # its own login from a few steps above. Passing it as a value again would
     # put the password back on this runner's argv and into every release Secret
