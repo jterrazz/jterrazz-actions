@@ -19,6 +19,7 @@ jobs:
     with:
       node-version: ${{ inputs.node-version }}
       browsers: ${{ inputs.browsers }}
+      mutation: false
 
   publish:
     name: Publish

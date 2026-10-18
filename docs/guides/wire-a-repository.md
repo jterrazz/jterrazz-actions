@@ -7,7 +7,8 @@ pipeline once, every repository gets it.
 Four rules hold everywhere:
 
 - The `Makefile` exposes `build`, `lint` and `test`, whatever the toolchain.
-  A `mutation` target, where it has one, runs after them in the same job.
+  A `mutation` target, where it has one, runs after them in the same job,
+  on a push or a pull request; a release skips it.
 - Node.js 24, except where a workflow's own default says otherwise.
 - The release caller is named `release.yaml`, because npm provenance is
   configured against that filename. Never skip validation: every release

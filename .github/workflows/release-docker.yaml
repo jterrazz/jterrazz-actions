@@ -54,6 +54,7 @@ jobs:
     with:
       node-version: ${{ inputs.node-version }}
       browsers: ${{ inputs.browsers }}
+      mutation: false
 
   release:
     name: Release

@@ -8,8 +8,8 @@ workflow validates; four release, and each of them validates first.
 | Workflow                | Purpose                                                              | Trigger in the caller       |
 | ----------------------- | -------------------------------------------------------------------- | --------------------------- |
 | `validate.yaml`         | `make build` + `make lint` + `make test` (+ `make mutation`, + `make test-mobile` on macOS) | push / PR to `main`         |
-| `release-docker.yaml`   | Validate, Docker build, Helm deploy to the cluster, then prune old tags | push to `main`, `v*` tags   |
-| `release-npm.yaml`      | Validate, then `npm publish` with OIDC provenance                    | GitHub Release              |
+| `release-docker.yaml`   | Validate (no mutation), Docker build, Helm deploy to the cluster, then prune old tags | push to `main`, `v*` tags   |
+| `release-npm.yaml`      | Validate (no mutation), then `npm publish` with OIDC provenance                    | GitHub Release              |
 | `release-go.yaml`       | Cross-compile Go binaries into a GitHub Release                      | `v*` tags                   |
 | `release-tauri.yaml`    | Build, sign and notarize a Tauri desktop app (macOS, Linux) into a GitHub Release | `v*` tags            |
 
@@ -32,13 +32,20 @@ commit of a branch's first push), the step measures from the fork point
 with the default branch, or else the parent commit, and says which; an
 event that carries neither (a schedule, a manual run) leaves the variable
 blank, and the working tree is measured against `HEAD`.
-Stryker's incremental files live in `.artifacts/stryker/`, so the restored
-cache keeps a run to the mutants whose source or tests changed.
+
+Under CI the toolchain runs mutation cold: it reads no report the restored
+`.artifacts/` carries, so every run re-measures every mutant the module tests
+reach, and a large package's run takes hours. That is why a release skips it:
+`release-npm.yaml` and `release-docker.yaml` call validate with
+`mutation: false`, since the push or the pull request that brought the commit
+gated it already. A Docker app whose push to `main` is its release therefore
+runs mutation on its pull requests only.
 
 | Input          | Default | Effect                                                                       |
 | -------------- | ------- | ---------------------------------------------------------------------------- |
 | `node-version` | `'24'`  | Installs Node with an npm cache. An explicit empty string skips the setup entirely; a caller that passes a version keeps it. |
 | `browsers`     | `false` | Provisions Playwright chromium before Test, cached by the version read from whichever lockfile the caller has: `package-lock.json`, `bun.lock`, or `pnpm-lock.yaml`, tried in that order. For suites that render pages through `specification.website()` (`@jterrazz/test`). |
+| `mutation`     | `true`  | Runs the `Makefile`'s `mutation` target after Test, where it has one. The release workflows pass `false`. |
 
 ### The mobile job
 
@@ -71,7 +78,7 @@ The `.artifacts/` cache the three gates run against is its own concept: [artifac
 
 ## release-docker.yaml
 
-Validates, builds and pushes the image, deploys it with Helm, then prunes old
+Validates without mutation, builds and pushes the image, deploys it with Helm, then prunes old
 tags. Its inputs beyond `image-name` (required) are `node-version`, `browsers`,
 `timeout` (default `5m`, cert-manager headroom on a first deploy),
 `manifest` (default `.infrastructure/application.yaml`), `dockerfile`,
@@ -144,7 +151,7 @@ runner to read, for as long as the step runs.
 
 ## release-npm.yaml
 
-Validates, then publishes with `npm publish --access public --provenance`. The
+Validates without mutation, then publishes with `npm publish --access public --provenance`. The
 caller's workflow file must be named `release.yaml`: that name is what npm
 provenance is configured against on the package.
 
