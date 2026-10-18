@@ -1,6 +1,6 @@
 ---
 name: jterrazz-workflows
-description: Shared CI/CD workflows for jterrazz projects — validate, release-npm, release-docker, release-go, release-tauri. Use when setting up GitHub Actions, configuring CI, releasing, or debugging workflow failures in a jterrazz repo.
+description: Shared CI/CD workflows for jterrazz projects: validate, release-npm, release-docker, release-go, release-tauri. Use when setting up GitHub Actions, configuring CI, releasing, or debugging workflow failures in a jterrazz repo.
 ---
 
 # jterrazz-workflows
@@ -31,6 +31,6 @@ repository.
 ## Always
 
 - Node.js 24, unless a workflow's own default says otherwise.
-- The release caller is named `release.yaml` — npm provenance is configured
+- The release caller is named `release.yaml`, since npm provenance is configured
   against that filename.
 - Never skip validation: every release workflow runs it first.

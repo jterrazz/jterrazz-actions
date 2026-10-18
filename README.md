@@ -13,7 +13,7 @@ repository gets it.
 
 It inherits a warm build with it: CI caches `.artifacts/`, the one root the
 ecosystem keeps build and tool state under, and a repository that writes there
-compiles incrementally between runs — no other opt-in.
+compiles incrementally between runs, with no other opt-in.
 
 ## Thirty seconds
 

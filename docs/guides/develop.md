@@ -6,7 +6,7 @@ that edit opens and what else it has to stay in step with.
 
 ## Which file a change opens
 
-| Changing…                                                    | Open                                                                  |
+| Changing                                                     | Open                                                                  |
 | -------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | The three gates every caller runs, or the `.artifacts` cache   | `.github/workflows/validate.yaml`                                       |
 | A Docker release end to end                                    | `.github/workflows/release-docker.yaml` and the four `actions/*/action.yaml` |
@@ -22,18 +22,18 @@ other, and a change to the source is not a change to its copy on its own:
 
 - **`release-go.yaml` spells the three gates and the `.artifacts` cache out in
   its own job instead of calling `validate.yaml`**, so that Go's own toolchain
-  can join the same cache — see the `release-go.yaml` section of
+  can join the same cache; see the `release-go.yaml` section of
   [architecture](../concepts/architecture.md). The two are meant to stay
   identical; a change to one is a change to both.
 - **`AGENTS.md`'s routing table, `skills/jterrazz-workflows/SKILL.md`'s routing
   table and `docs/README.md`'s map name the same pages.** A page
-  renamed in one is renamed in the other two, by hand — there is no
+  renamed in one is renamed in the other two, by hand: there is no
   compiler here to catch the two that were forgotten.
 
 ## No actionlint runs here
 
 Beyond `make lint` ([test.md](test.md)), which judges `docs/` only, nothing
-under `.github/` or `actions/` invokes `actionlint`, or any other schema checker, against this repository's own YAML — a change is reviewed by
+under `.github/` or `actions/` invokes `actionlint`, or any other schema checker, against this repository's own YAML; a change is reviewed by
 eye, against the four rules a consuming repository is held to
 ([wire-a-repository.md](wire-a-repository.md)), and against the invariants this
 guide names. What actually catches a malformed workflow, and when, is
@@ -42,7 +42,7 @@ guide names. What actually catches a malformed workflow, and when, is
 ## The comment a step earns
 
 A step whose behaviour is not obvious from its name carries a comment beside
-it explaining the constraint that shaped it, not what the step does — the
+it explaining the constraint that shaped it, not what the step does. The
 existing steps are the model to match, e.g. why Buildx runs with
 `network=host` (`actions/docker-build/action.yaml`), why the `.artifacts`
 cache key carries the run id (`.github/workflows/validate.yaml`), and why the

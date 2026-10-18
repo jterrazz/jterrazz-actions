@@ -8,18 +8,18 @@ workflow validates; four release, and each of them validates first.
 | Workflow                | Purpose                                                              | Trigger in the caller       |
 | ----------------------- | -------------------------------------------------------------------- | --------------------------- |
 | `validate.yaml`         | `make build` + `make lint` + `make test` (+ `make mutation`, + `make test-mobile` on macOS) | push / PR to `main`         |
-| `release-docker.yaml`   | Validate → Docker build → Helm deploy to the cluster → prune old tags | push to `main`, `v*` tags   |
-| `release-npm.yaml`      | Validate → `npm publish` with OIDC provenance                        | GitHub Release              |
-| `release-go.yaml`       | Cross-compile Go binaries → GitHub Release                           | `v*` tags                   |
-| `release-tauri.yaml`    | Build, sign and notarize a Tauri desktop app (macOS, Linux) → GitHub Release | `v*` tags            |
+| `release-docker.yaml`   | Validate, Docker build, Helm deploy to the cluster, then prune old tags | push to `main`, `v*` tags   |
+| `release-npm.yaml`      | Validate, then `npm publish` with OIDC provenance                    | GitHub Release              |
+| `release-go.yaml`       | Cross-compile Go binaries into a GitHub Release                      | `v*` tags                   |
+| `release-tauri.yaml`    | Build, sign and notarize a Tauri desktop app (macOS, Linux) into a GitHub Release | `v*` tags            |
 
 ## validate.yaml
 
-Runs `make build`, `make lint`, `make test` in that order — the universal CI
+Runs `make build`, `make lint`, `make test` in that order: the universal CI
 interface, which is all a repo has to expose whatever its toolchain. A
 `Makefile` that also has a `mutation` target runs it last: for an
 `@jterrazz/typescript` project, `typescript mutation`, which fails on any
-mutant a test runs and none detects — the module tests over the sources they
+mutant a test runs and none detects: the module tests over the sources they
 test, and the whole suite over the lines the push or the pull request
 changed that no module test runs.
 
@@ -27,8 +27,8 @@ The step hands it that range as
 `TYPESCRIPT_MUTATION_SINCE` (the pull request's base, else the commit the
 push started from), which is why validate checks out the whole history. The
 toolchain refuses a commit the clone does not hold, so when the push
-started from one it cannot reach — a force-push dropped it, or the zero
-commit of a branch's first push — the step measures from the fork point
+started from one it cannot reach (a force-push dropped it, or the zero
+commit of a branch's first push), the step measures from the fork point
 with the default branch, or else the parent commit, and says which; an
 event that carries neither (a schedule, a manual run) leaves the variable
 blank, and the working tree is measured against `HEAD`.
@@ -38,12 +38,12 @@ cache keeps a run to the mutants whose source or tests changed.
 | Input          | Default | Effect                                                                       |
 | -------------- | ------- | ---------------------------------------------------------------------------- |
 | `node-version` | `'24'`  | Installs Node with an npm cache. An explicit empty string skips the setup entirely; a caller that passes a version keeps it. |
-| `browsers`     | `false` | Provisions Playwright chromium before Test, cached by the version read from whichever lockfile the caller has — `package-lock.json`, `bun.lock`, or `pnpm-lock.yaml`, tried in that order. For suites that render pages through `specification.website()` (`@jterrazz/test`). |
+| `browsers`     | `false` | Provisions Playwright chromium before Test, cached by the version read from whichever lockfile the caller has: `package-lock.json`, `bun.lock`, or `pnpm-lock.yaml`, tried in that order. For suites that render pages through `specification.website()` (`@jterrazz/test`). |
 
 ### The mobile job
 
-A repository that declares mobile in its `jterrazz.config.ts` — `kind:
-'mobile'`, or a test project of `facet: 'mobile'` — gets a second job, on
+A repository that declares mobile in its `jterrazz.config.ts` (`kind:
+'mobile'`, or a test project of `facet: 'mobile'`) gets a second job, on
 `macos-26` with Xcode 26.5 selected, the image and the Xcode whose iOS 26.5
 simulator the mobile specs pin: `make test-mobile`, its mobile specs against a
 real simulator rather than the protocol double `make test` drives. The image
@@ -57,13 +57,13 @@ owes.
 It runs when the push or the pull request changes what those specs drive:
 any change for a mobile app, and, for a repository that only tests one (the
 mobile facet of `@jterrazz/test`), a path naming `mobile` or `ios` or a
-change of its dependencies — `package.json` or a lockfile, where the
-simulator's client is pinned. A macOS minute costs ten Linux ones, so a
+change of its dependencies (`package.json` or a lockfile, where the
+simulator's client is pinned). A macOS minute costs ten Linux ones, so a
 change that cannot alter a simulator run does not pay for one; a new branch,
 whose base it cannot diff, always runs. The shared workflow runs on no
 schedule, which the declaration exists to spare its callers. The one thing
-the path filter cannot see is a facet's shared core — the runner code the
-mobile facet runs on beside every other — so the repository that carries one
+the path filter cannot see is a facet's shared core, the runner code the
+mobile facet runs on beside every other, so the repository that carries one
 schedules its own caller weekly (`@jterrazz/test`), and a run with no commit
 to diff from always runs the job.
 
@@ -76,16 +76,16 @@ tags. Its inputs beyond `image-name` (required) are `node-version`, `browsers`,
 `timeout` (default `5m`, cert-manager headroom on a first deploy),
 `manifest` (default `.infrastructure/application.yaml`), `dockerfile`,
 `build-args` and `keep-latest-versions` (default `3`). It requires the two
-Infisical secrets — [secrets.md](../reference/secrets.md).
+Infisical secrets: [secrets.md](../reference/secrets.md).
 
 Which environments a run deploys is resolved from the manifest's
 `environments` block:
 
-- **No environment declares a `tag:`** — a `v*` tag deploys `prod` with that
+- **No environment declares a `tag:`**: a `v*` tag deploys `prod` with that
   image tag; a push to `main` deploys `staging` with `latest`. This is the
   legacy branch, and it is why the infrastructure side calls `tag:` mandatory:
   without it a push silently leaves prod stale.
-- **Environments declare a `tag:`** — a `v*` tag deploys every environment
+- **Environments declare a `tag:`**: a `v*` tag deploys every environment
   whose `tag:` is `next`, with the released tag; a push to `main` deploys every
   environment whose `tag:` is `main`, with `latest`. A manual
   `workflow_dispatch` additionally deploys the environments pinned to a literal
@@ -139,7 +139,7 @@ Steady-state upgrades finish in seconds, so the higher default costs nothing.
 
 **docker-cleanup.** Deletes old `v*` registry tags beyond
 `keep-latest-versions`, over the registry's HTTP API with a netrc file rather
-than a `curl -u` argument — an argument sits in `ps` for anything else on the
+than a `curl -u` argument, since an argument sits in `ps` for anything else on the
 runner to read, for as long as the step runs.
 
 ## release-npm.yaml

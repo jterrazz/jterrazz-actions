@@ -7,7 +7,7 @@ knowledge is in [docs/](docs/README.md).
 
 Five reusable workflows in `.github/workflows/`, built from four composite
 actions in `actions/`. A consuming repository owns two workflow files and a
-`Makefile` with `build`, `lint` and `test` — that make interface is the whole
+`Makefile` with `build`, `lint` and `test`: that make interface is the whole
 contract on the caller's side, whatever its toolchain.
 
 `lint.yaml` is the one workflow that is this repository's own: it runs `make lint`,

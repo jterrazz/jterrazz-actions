@@ -13,9 +13,9 @@ Four rules hold everywhere:
   configured against that filename. Never skip validation: every release
   workflow runs it first.
 - Build and tool state goes under `.artifacts/<tool>/`, gitignored. That is
-  the whole opt-in to CI caching — see below.
-- A repository whose `jterrazz.config.ts` declares mobile — `kind: 'mobile'`,
-  or a `facet: 'mobile'` test project — exposes `test-mobile`, which validate
+  the whole opt-in to CI caching; see below.
+- A repository whose `jterrazz.config.ts` declares mobile (`kind: 'mobile'`,
+  or a `facet: 'mobile'` test project) exposes `test-mobile`, which validate
   runs on macOS when a change reaches the mobile specs
   ([architecture](../concepts/architecture.md#the-mobile-job)).
 
@@ -34,7 +34,7 @@ tool state there and nowhere else:
 | cargo      | `CARGO_TARGET_DIR=.artifacts/cargo`                                  |
 | playwright | `outputDir: '.artifacts/playwright'`                                 |
 
-`dist/` is not one of them: it stays where it is, and CI never caches it —
+`dist/` is not one of them: it stays where it is, and CI never caches it:
 a release ships what the commit says. Add `.artifacts/` to `.gitignore`;
 nothing under it is a source. A repository that opts out keeps cold runs and
 the workflow does not notice.
@@ -51,7 +51,7 @@ jobs:
   validate:
     uses: jterrazz/jterrazz-actions/.github/workflows/validate.yaml@main
     with: { node-version: "24" }
-    # browsers: true — Playwright chromium for specification.website() suites
+    # browsers: true provisions Playwright chromium for specification.website() suites
 ```
 
 ```yaml
