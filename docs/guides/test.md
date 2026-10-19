@@ -15,7 +15,8 @@ manual is cut into `start/`, `guides/`, `concepts/`, `reference/` and
 `decisions/`, the map links only its own pages, and the required pages exist;
 the Markdown is short-blocked and its links resolve; every comment in the
 workflows and actions states its kind; the names and the secrets are judged.
-It needs no `package.json` (`npx` fetches the toolchain), and
+It needs no `package.json` (`npx` fetches the toolchain, at the release the
+`Makefile` pins), and
 `.github/workflows/lint.yaml` runs it on every push and pull request. It does
 not parse the YAML as a workflow: GitHub does that, in the caller's run.
 

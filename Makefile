@@ -1,4 +1,6 @@
 .PHONY: lint
 
+# hazard: an unpinned `--package` runs whichever release npx resolves on that machine, and a clean
+# tree went red on one older than the content kind; the pin moves when this tree adopts a release.
 lint:
-	npx --yes --package=@jterrazz/typescript -- typescript check
+	npx --yes --package=@jterrazz/typescript@11.0.0 -- typescript check
