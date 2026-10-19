@@ -33,7 +33,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
-          cache: npm
+          # A repository with no npm lockfile (a gateway that only runs the toolchain through npx) still gets its Node.
+          cache: ${{ hashFiles('package-lock.json') != '' && 'npm' || '' }}
 
       - name: Restore build artifacts
         id: artifacts
@@ -216,7 +217,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
-          cache: npm
+          # A repository with no npm lockfile (a gateway that only runs the toolchain through npx) still gets its Node.
+          cache: ${{ hashFiles('package-lock.json') != '' && 'npm' || '' }}
 
       - name: Test on a simulator
         run: make test-mobile
