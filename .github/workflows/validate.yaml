@@ -110,6 +110,9 @@ jobs:
         # refuses when the clone lacks it, so a force-push or a branch's
         # first push (the zero commit) measures from the fork point with
         # the default branch, or the parent commit, named in the log.
+        # A change that touches only Markdown or the manual (the root docs/)
+        # gives mutation nothing to measure, so it skips; an event with no
+        # commit to diff from (a schedule, a dispatch, a release) always runs.
         if: inputs.mutation
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
@@ -125,6 +128,13 @@ jobs:
               fi
               echo "The clone holds no commit $since: the whole suite measures the change since ${fallback:-HEAD}."
               since="$fallback"
+            fi
+            if [ -n "$since" ]; then
+              changed=$(git diff --name-only "$since" HEAD)
+            fi
+            if [ -n "$since" ] && ! grep -qvE '\.md$|^docs/' <<< "$changed"; then
+              echo "The change since $since touches only Markdown and docs/: mutation has nothing to measure."
+              exit 0
             fi
             TYPESCRIPT_MUTATION_SINCE="$since" make mutation
           fi

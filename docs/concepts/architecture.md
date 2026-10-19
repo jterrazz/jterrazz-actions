@@ -33,6 +33,11 @@ with the default branch, or else the parent commit, and says which; an
 event that carries neither (a schedule, a manual run) leaves the variable
 blank, and the working tree is measured against `HEAD`.
 
+A change that touches only Markdown, or only the manual under the root
+`docs/`, gives mutation nothing to measure, so the step reads the diff over
+that same range and skips, saying so. An event with no commit to diff from
+always runs it.
+
 Under CI the toolchain runs mutation cold: it reads no report the restored
 `.artifacts/` carries, so every run re-measures every mutant the module tests
 reach, and a large package's run takes hours. That is why a release skips it:
