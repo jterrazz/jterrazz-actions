@@ -46,6 +46,16 @@ reach, and a large package's run takes hours. That is why a release skips it:
 gated it already. A Docker app whose push to `main` is its release therefore
 runs mutation on its pull requests only.
 
+A newer run cancels the one it makes useless, and only that one: validate
+holds a concurrency group per caller workflow and ref for a pull request,
+whose next run gates the same base, and for a push to a branch other than
+the default. A push to the default branch is never cancelled, since its
+mutation range (the commit before it to this one) is measured by no later
+run, and neither is a release (`mutation: false`, a tag, a release event):
+each of those runs in a group of its own run id. The group name opens with
+`validate-` so it never equals a group the caller's own workflow holds,
+which GitHub resolves by cancelling one of the two.
+
 | Input          | Default | Effect                                                                       |
 | -------------- | ------- | ---------------------------------------------------------------------------- |
 | `node-version` | `'24'`  | Installs Node with an npm cache. An explicit empty string skips the setup entirely; a caller that passes a version keeps it. |
