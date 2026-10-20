@@ -46,13 +46,6 @@ reach, and a large package's run takes hours. That is why a release skips it:
 gated it already. A Docker app whose push to `main` is its release therefore
 runs mutation on its pull requests only.
 
-Any event other than a push or a pull request (a schedule, a dispatch, a
-release event) also sets `TYPESCRIPT_MUTATION_COLD`, asking the toolchain
-for a cold run in its own name. As long as the toolchain runs cold
-whenever `CI` is set, that changes nothing; it is what keeps those runs the
-full verdict once the toolchain lets a push or a pull request reuse the
-report the restored `.artifacts/` carries.
-
 A newer run cancels the one it makes useless, and only that one: validate
 holds a concurrency group per caller workflow and ref for a pull request,
 whose next run gates the same base, and for a push to a branch other than
