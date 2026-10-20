@@ -110,12 +110,11 @@ jobs:
 
       - name: Mutation
         # invariant: only a Makefile with a `mutation` target runs it, and only when the
-        # caller leaves `mutation` on. Under CI the toolchain runs cold: it
-        # reads no report the restored .artifacts/ carries, so the module
-        # tests re-measure every mutant of the package on every run. A
-        # release turns it off: the push or the pull request that brought
-        # its commit gated it already, and a large package's cold run takes
-        # hours, against the 6 h job limit.
+        # caller leaves `mutation` on. The toolchain runs the same way as on
+        # any machine: it reuses what the report in the restored .artifacts/
+        # still proves, and a run that restores no report runs cold by
+        # itself. A release turns it off: the push or the pull request that
+        # brought its commit gated it already.
         # The whole suite measures the lines this push or pull request
         # changed, since the commit it started from, which the toolchain
         # refuses when the clone lacks it, so a force-push or a branch's
