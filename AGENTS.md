@@ -5,7 +5,7 @@ knowledge is in [docs/](docs/README.md).
 
 ## Mental model
 
-Five reusable workflows in `.github/workflows/`, built from four composite
+Four reusable workflows in `.github/workflows/`, built from four composite
 actions in `actions/`. A consuming repository owns two workflow files and a
 `Makefile` with `build`, `lint` and `test`: that make interface is the whole
 contract on the caller's side, whatever its toolchain.

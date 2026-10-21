@@ -12,7 +12,6 @@ that edit opens and what else it has to stay in step with.
 | A Docker release end to end                                    | `.github/workflows/release-docker.yaml` and the four `actions/*/action.yaml` |
 | `npm publish` behaviour                                        | `.github/workflows/release-npm.yaml`                                    |
 | The Go cross-compile matrix                                    | `.github/workflows/release-go.yaml`                                     |
-| Tauri build, signing and notarization                          | `.github/workflows/release-tauri.yaml`                                  |
 | What a page tells a reader                                  | `docs/*`, then the routing tables in `AGENTS.md` and `skills/jterrazz-workflows/SKILL.md` that mirror it |
 
 ## What a change owes

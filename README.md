@@ -30,8 +30,8 @@ jobs:
 ```
 
 That runs `make build`, `make lint` and `make test` on every push and pull
-request. Releases are one more file each: npm, Docker to the cluster, Go and
-Tauri.
+request. Releases are one more file each: npm, Docker to the cluster, and
+Go.
 
 ## Documentation
 

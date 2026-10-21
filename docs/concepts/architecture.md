@@ -1,9 +1,9 @@
 # Architecture
 
-The shape of this repository is its catalogue: five reusable workflows in
+The shape of this repository is its catalogue: four reusable workflows in
 `.github/workflows/`, called by every `@jterrazz` repository, and the four
 composite actions in `actions/` that `release-docker.yaml` is built from. One
-workflow validates; four release, and each of them validates first.
+workflow validates; three release, and each of them validates first.
 
 | Workflow                | Purpose                                                              | Trigger in the caller       |
 | ----------------------- | -------------------------------------------------------------------- | --------------------------- |
@@ -11,7 +11,6 @@ workflow validates; four release, and each of them validates first.
 | `release-docker.yaml`   | Validate (mutation if asked), Docker build, Helm deploy to the cluster, then prune old tags | push to `main`, `v*` tags   |
 | `release-npm.yaml`      | Validate (no mutation), then `npm publish` with OIDC provenance                    | GitHub Release              |
 | `release-go.yaml`       | Cross-compile Go binaries into a GitHub Release                      | `v*` tags                   |
-| `release-tauri.yaml`    | Build, sign and notarize a Tauri desktop app (macOS, Linux) into a GitHub Release | `v*` tags            |
 
 ## validate.yaml
 
@@ -160,19 +159,6 @@ is required; `build-path` defaults to `.`, `go-version` to `1.24`, and
 It spells the gates out in its own job instead of calling `validate.yaml`, and
 so carries its own copy of the `.artifacts` cache. The two are meant to stay
 identical: a change to one is a change to both.
-
-## release-tauri.yaml
-
-Builds a Tauri app on a matrix of macOS and Linux targets, signs and notarizes
-it when the Apple secrets are present, and attaches the bundles to a GitHub
-Release. `project-path` (the directory containing `src-tauri/`) is required;
-`node-version` defaults to `22`. It is the one workflow that runs no `make`
-gate, so it carries no `.artifacts` cache either.
-
-An app that ships a binary sidecar inside the bundle sets `go-version` and
-`pre-build-script`. The script runs after Node and Go are installed and before
-`tauri-action`, so whatever it produces is on disk in time for the bundler to
-pick it up through the sidecar config.
 
 ## Where `release-docker.yaml` deploys to
 

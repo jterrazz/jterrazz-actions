@@ -1,6 +1,6 @@
 # Testing
 
-Almost nothing mechanical proves a change here: every one of the five
+Almost nothing mechanical proves a change here: every one of the four
 workflows triggers only on `workflow_call`, so none of them runs on a push or a
 pull request to this repository's own `main`. The one gate that does run is
 `make lint`, which judges the prose, the comments, the names, the secrets and the shape of `docs/`, and never what a workflow does. Read that

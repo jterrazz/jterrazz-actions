@@ -16,14 +16,14 @@ carry to call them.
 
 | Page                                                  | Holds                                                                                          |
 | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| [architecture.md](concepts/architecture.md)           | The five reusable workflows and the four composite actions they are built from                 |
+| [architecture.md](concepts/architecture.md)           | The four reusable workflows and the four composite actions they are built from                 |
 | [artifacts-cache.md](concepts/artifacts-cache.md)     | Why CI keeps one cache root, and how its key tracks HEAD                                       |
 
 ## Reference
 
 | Page                                                  | Holds                                                                                          |
 | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| [secrets.md](reference/secrets.md)                    | Infisical, the two GitHub secrets, and the Tauri signing set                                   |
+| [secrets.md](reference/secrets.md)                    | Infisical and the two GitHub secrets                                                           |
 
 This repository ships nothing of its own, so it carries no `guides/release.md`
 and no `start/` tutorial: [architecture.md](concepts/architecture.md) names

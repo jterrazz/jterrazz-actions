@@ -124,33 +124,3 @@ jobs:
     uses: jterrazz/jterrazz-actions/.github/workflows/release-go.yaml@main
     with: { binary-name: j, build-path: ./src/cmd/j }
 ```
-
-## Tauri desktop app
-
-```yaml
-# .github/workflows/release.yaml
-name: Release
-on:
-  push:
-    tags: ["v*"]
-permissions: { contents: write }
-jobs:
-  desktop:
-    uses: jterrazz/jterrazz-actions/.github/workflows/release-tauri.yaml@main
-    with: { project-path: apps/observatory }
-    secrets: inherit
-```
-
-With a sidecar binary in the bundle:
-
-```yaml
-jobs:
-  desktop:
-    uses: jterrazz/jterrazz-actions/.github/workflows/release-tauri.yaml@main
-    with:
-      project-path: apps/observatory
-      go-version: "1.25"
-      pre-build-script: |
-        cd apps/cli && go build -o ../../bin/spwn ./cmd/spwn
-    secrets: inherit
-```
