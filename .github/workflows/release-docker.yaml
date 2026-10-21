@@ -34,14 +34,6 @@ on:
         description: Path to Dockerfile
         default: "Dockerfile"
         type: string
-      build-args:
-        description: Docker build arguments
-        default: ""
-        type: string
-      keep-latest-versions:
-        description: Number of recent v* tags to keep in registry
-        default: "3"
-        type: string
     secrets:
       INFISICAL_CLIENT_ID:
         required: true
@@ -91,7 +83,6 @@ jobs:
           image-name: ${{ inputs.image-name }}
           tag: ${{ steps.image.outputs.tag }}
           dockerfile: ${{ inputs.dockerfile }}
-          build-args: ${{ inputs.build-args }}
 
       - name: Resolve deployments
         id: deployments
@@ -140,4 +131,3 @@ jobs:
         uses: jterrazz/jterrazz-actions/actions/docker-cleanup@main
         with:
           image-name: ${{ inputs.image-name }}
-          keep-latest-versions: ${{ inputs.keep-latest-versions }}

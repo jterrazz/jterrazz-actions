@@ -76,8 +76,8 @@ The `.artifacts/` cache the three gates run against is its own concept: [artifac
 Validates, builds and pushes the image, deploys it with Helm, then prunes old
 tags. Its inputs beyond `image-name` (required) are `node-version`, `browsers`,
 `mutation` (default `false`, forwarded to validate), `timeout` (default `5m`, cert-manager headroom on a first deploy),
-`manifest` (default `.infrastructure/application.yaml`), `dockerfile`,
-`build-args` and `keep-latest-versions` (default `3`). It requires the two
+`manifest` (default `.infrastructure/application.yaml`) and `dockerfile`. It
+requires the two
 Infisical secrets: [secrets.md](../reference/secrets.md).
 
 Which environments a run deploys is resolved from the manifest's
@@ -139,8 +139,8 @@ first deploy that introduces a new Certificate: DNS-01 against Cloudflare
 usually takes about a minute but queues when several apps roll out at once.
 Steady-state upgrades finish in seconds, so the higher default costs nothing.
 
-**docker-cleanup.** Deletes old `v*` registry tags beyond
-`keep-latest-versions`, over the registry's HTTP API with a netrc file rather
+**docker-cleanup.** Deletes old `v*` registry tags beyond the newest
+`keep-latest-versions` (default `3`), over the registry's HTTP API with a netrc file rather
 than a `curl -u` argument, since an argument sits in `ps` for anything else on the
 runner to read, for as long as the step runs.
 
