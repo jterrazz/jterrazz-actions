@@ -9,6 +9,7 @@ that edit opens and what else it has to stay in step with.
 | Changing                                                     | Open                                                                  |
 | -------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | The three gates every caller runs, or the `.artifacts` cache   | `.github/workflows/validate.yaml`                                       |
+| The range mutation measures                                    | `actions/mutation-since/action.yaml`                                    |
 | A Docker release end to end                                    | `.github/workflows/release-docker.yaml` and the four `actions/*/action.yaml` |
 | `npm publish` behaviour                                        | `.github/workflows/release-npm.yaml`                                    |
 | The Go cross-compile matrix                                    | `.github/workflows/release-go.yaml`                                     |

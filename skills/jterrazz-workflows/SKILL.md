@@ -12,7 +12,8 @@ and a `Makefile` exposing `build`, `lint` and `test`, and inherits the pipeline.
 Callers reference `@main`, so a change here lands on every repository's next
 run. The workflows are `validate`, `release-npm`, `release-docker` and
 `release-go`; the composite actions they are built from are
-`infra-connect`, `docker-build`, `docker-deploy` and `docker-cleanup`.
+`mutation-since`, `infra-connect`, `docker-build`, `docker-deploy` and
+`docker-cleanup`.
 
 ## Where to read
 

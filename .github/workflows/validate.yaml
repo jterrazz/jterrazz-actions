@@ -108,6 +108,11 @@ jobs:
       - name: Test
         run: make test
 
+      - name: Resolve the mutation range
+        if: inputs.mutation
+        id: since
+        uses: jterrazz/jterrazz-actions/actions/mutation-since@main
+
       - name: Mutation
         # invariant: only a Makefile with a `mutation` target runs it, and only when the
         # caller leaves `mutation` on. The toolchain runs the same way as on
@@ -118,37 +123,23 @@ jobs:
         # turns it off unless its caller asks, as a Docker app whose push to
         # main is its release does.
         # The whole suite measures the lines this push or pull request
-        # changed, since the commit it started from, which the toolchain
-        # refuses when the clone lacks it, so a force-push or a branch's
-        # first push (the zero commit) measures from the fork point with
-        # the default branch, or the parent commit, named in the log.
+        # changed, since the commit mutation-since resolves.
         # A change that touches only Markdown or the manual (the root docs/)
         # gives mutation nothing to measure, so it skips; an event with no
         # commit to diff from (a schedule, a dispatch, a release) always runs.
         if: inputs.mutation
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-          BEFORE: ${{ github.event.before }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          SINCE: ${{ steps.since.outputs.since }}
         run: |
           if grep -q '^mutation:' Makefile; then
-            since="${BASE:-$BEFORE}"
-            if [ -n "$since" ] && ! git cat-file -e "$since^{commit}" 2>/dev/null; then
-              fallback=$(git merge-base HEAD "origin/$DEFAULT_BRANCH" 2>/dev/null || true)
-              if [ -z "$fallback" ] || [ "$fallback" = "$(git rev-parse HEAD)" ]; then
-                fallback=$(git rev-parse --verify --quiet HEAD~1 || true)
-              fi
-              echo "The clone holds no commit $since: the whole suite measures the change since ${fallback:-HEAD}."
-              since="$fallback"
+            if [ -n "$SINCE" ]; then
+              changed=$(git diff --name-only "$SINCE" HEAD)
             fi
-            if [ -n "$since" ]; then
-              changed=$(git diff --name-only "$since" HEAD)
-            fi
-            if [ -n "$since" ] && ! grep -qvE '\.md$|^docs/' <<< "$changed"; then
-              echo "The change since $since touches only Markdown and docs/: mutation has nothing to measure."
+            if [ -n "$SINCE" ] && ! grep -qvE '\.md$|^docs/' <<< "$changed"; then
+              echo "The change since $SINCE touches only Markdown and docs/: mutation has nothing to measure."
               exit 0
             fi
-            TYPESCRIPT_MUTATION_SINCE="$since" make mutation
+            TYPESCRIPT_MUTATION_SINCE="$SINCE" make mutation
           fi
 
       - name: Save build artifacts

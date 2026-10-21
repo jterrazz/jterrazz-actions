@@ -1,9 +1,10 @@
 # Architecture
 
 The shape of this repository is its catalogue: four reusable workflows in
-`.github/workflows/`, called by every `@jterrazz` repository, and the four
-composite actions in `actions/` that `release-docker.yaml` is built from. One
-workflow validates; three release, and each of them validates first.
+`.github/workflows/`, called by every `@jterrazz` repository, and the
+composite actions in `actions/` they are built from: four for
+`release-docker.yaml`, and `mutation-since` for `validate.yaml`. One workflow
+validates; three release, and each of them validates first.
 
 | Workflow                | Purpose                                                              | Trigger in the caller       |
 | ----------------------- | -------------------------------------------------------------------- | --------------------------- |
@@ -24,7 +25,8 @@ changed that no module test runs.
 
 ### The mutation range
 
-The step hands it that range as
+The step hands it that range, which
+[`actions/mutation-since`](../../actions/mutation-since) resolves, as
 `TYPESCRIPT_MUTATION_SINCE` (the pull request's base, else the commit the
 push started from), which is why validate checks out the whole history. The
 toolchain refuses a commit the clone does not hold, so when the push
