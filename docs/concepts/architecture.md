@@ -8,7 +8,7 @@ workflow validates; four release, and each of them validates first.
 | Workflow                | Purpose                                                              | Trigger in the caller       |
 | ----------------------- | -------------------------------------------------------------------- | --------------------------- |
 | `validate.yaml`         | `make build` + `make lint` + `make test` (+ `make mutation`)       | push / PR to `main`         |
-| `release-docker.yaml`   | Validate (no mutation), Docker build, Helm deploy to the cluster, then prune old tags | push to `main`, `v*` tags   |
+| `release-docker.yaml`   | Validate (mutation if asked), Docker build, Helm deploy to the cluster, then prune old tags | push to `main`, `v*` tags   |
 | `release-npm.yaml`      | Validate (no mutation), then `npm publish` with OIDC provenance                    | GitHub Release              |
 | `release-go.yaml`       | Cross-compile Go binaries into a GitHub Release                      | `v*` tags                   |
 | `release-tauri.yaml`    | Build, sign and notarize a Tauri desktop app (macOS, Linux) into a GitHub Release | `v*` tags            |
@@ -43,10 +43,12 @@ always runs it.
 Under CI the toolchain runs mutation cold: it reads no report the restored
 `.artifacts/` carries, so every run re-measures every mutant the module tests
 reach, and a large package's run takes hours. That is why a release skips it:
-`release-npm.yaml` and `release-docker.yaml` call validate with
-`mutation: false`, since the push or the pull request that brought the commit
-gated it already. A Docker app whose push to `main` is its release therefore
-runs mutation on its pull requests only.
+`release-npm.yaml` calls validate with `mutation: false`, since the push or
+the pull request that brought the commit gated it already, and
+`release-docker.yaml` forwards its own `mutation` input, `false` by default. A
+Docker app whose push to `main` is its release passes `mutation: true`, so
+that push is validated once, mutation included, instead of by a validate
+caller and then again by the release.
 
 ### Which run a newer one cancels
 
@@ -66,15 +68,15 @@ which GitHub resolves by cancelling one of the two.
 | -------------- | ------- | ---------------------------------------------------------------------------- |
 | `node-version` | `'24'`  | Installs Node with an npm cache. An explicit empty string skips the setup entirely; a caller that passes a version keeps it. |
 | `browsers`     | `false` | Provisions Playwright chromium before Test, cached by the version read from whichever lockfile the caller has: `package-lock.json`, `bun.lock`, or `pnpm-lock.yaml`, tried in that order. For suites that render pages through `specification.website()` (`@jterrazz/test`). |
-| `mutation`     | `true`  | Runs the `Makefile`'s `mutation` target after Test, where it has one. The release workflows pass `false`. |
+| `mutation`     | `true`  | Runs the `Makefile`'s `mutation` target after Test, where it has one. `release-npm.yaml` passes `false`; `release-docker.yaml` forwards its own. |
 
 The `.artifacts/` cache the three gates run against is its own concept: [artifacts-cache.md](artifacts-cache.md).
 
 ## release-docker.yaml
 
-Validates without mutation, builds and pushes the image, deploys it with Helm, then prunes old
+Validates, builds and pushes the image, deploys it with Helm, then prunes old
 tags. Its inputs beyond `image-name` (required) are `node-version`, `browsers`,
-`timeout` (default `5m`, cert-manager headroom on a first deploy),
+`mutation` (default `false`, forwarded to validate), `timeout` (default `5m`, cert-manager headroom on a first deploy),
 `manifest` (default `.infrastructure/application.yaml`), `dockerfile`,
 `build-args` and `keep-latest-versions` (default `3`). It requires the two
 Infisical secrets: [secrets.md](../reference/secrets.md).

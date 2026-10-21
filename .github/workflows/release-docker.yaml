@@ -15,6 +15,10 @@ on:
         description: Provision Playwright browsers before testing (forwarded to validate.yaml)
         default: false
         type: boolean
+      mutation:
+        description: Run the Makefile's `mutation` target after Test (forwarded to validate.yaml)
+        default: false
+        type: boolean
       timeout:
         description: Helm deploy timeout
         # value: matches docker-deploy's own default; see that action.yaml for
@@ -54,7 +58,7 @@ jobs:
     with:
       node-version: ${{ inputs.node-version }}
       browsers: ${{ inputs.browsers }}
-      mutation: false
+      mutation: ${{ inputs.mutation }}
 
   release:
     name: Release

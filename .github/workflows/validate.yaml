@@ -12,7 +12,7 @@ on:
         default: false
         type: boolean
       mutation:
-        description: Run the Makefile's `mutation` target after Test (a release passes false)
+        description: Run the Makefile's `mutation` target after Test (release-npm passes false; release-docker forwards its caller's)
         default: true
         type: boolean
 
@@ -113,8 +113,10 @@ jobs:
         # caller leaves `mutation` on. The toolchain runs the same way as on
         # any machine: it reuses what the report in the restored .artifacts/
         # still proves, and a run that restores no report runs cold by
-        # itself. A release turns it off: the push or the pull request that
-        # brought its commit gated it already.
+        # itself. release-npm turns it off, since the push or the pull
+        # request that brought its commit gated it already; release-docker
+        # turns it off unless its caller asks, as a Docker app whose push to
+        # main is its release does.
         # The whole suite measures the lines this push or pull request
         # changed, since the commit it started from, which the toolchain
         # refuses when the clone lacks it, so a force-push or a branch's

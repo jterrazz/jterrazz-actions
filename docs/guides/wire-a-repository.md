@@ -8,7 +8,8 @@ Four rules hold everywhere:
 
 - The `Makefile` exposes `build`, `lint` and `test`, whatever the toolchain.
   A `mutation` target, where it has one, runs after them in the same job,
-  on a push or a pull request; a release skips it.
+  on a push or a pull request; an npm release skips it, and a Docker release
+  runs it when its caller passes `mutation: true`.
 - Node.js 24, except where a workflow's own default says otherwise.
 - The release caller is named `release.yaml`, because npm provenance is
   configured against that filename. Never skip validation: every release
@@ -66,15 +67,15 @@ jobs:
 
 ## Docker app deployed to the cluster
 
-The validate caller adds `workflow_call:` to its triggers so the release
-workflow can reuse it.
+The validate caller runs on pull requests only: a push to `main` is the
+release, and the release validates it once, mutation included, through
+`mutation: true`.
 
 ```yaml
 # .github/workflows/validate.yaml
 name: Validate
 on:
   pull_request: { branches: [main] }
-  workflow_call:
 jobs:
   validate:
     uses: jterrazz/jterrazz-actions/.github/workflows/validate.yaml@main
@@ -99,6 +100,7 @@ jobs:
     with:
       image-name: my-app
       node-version: "24"
+      mutation: true
     secrets:
       INFISICAL_CLIENT_ID: ${{ secrets.INFISICAL_CLIENT_ID }}
       INFISICAL_CLIENT_SECRET: ${{ secrets.INFISICAL_CLIENT_SECRET }}
