@@ -3,7 +3,8 @@
 The shape of this repository is its catalogue: four reusable workflows in
 `.github/workflows/`, called by every `@jterrazz` repository, and the
 composite actions in `actions/` they are built from: four for
-`release-docker.yaml`, and `mutation-since` for `validate.yaml`. One workflow
+`release-docker.yaml`, `mutation-since` for `validate.yaml`, and
+`artifacts-cache`, which `validate.yaml` and `release-go.yaml` share. One workflow
 validates; three release, and each of them validates first.
 
 | Workflow                | Purpose                                                              | Trigger in the caller       |
@@ -159,8 +160,8 @@ is required; `build-path` defaults to `.`, `go-version` to `1.24`, and
 `targets` to `darwin/arm64,darwin/amd64,linux/arm64,linux/amd64`.
 
 It spells the gates out in its own job instead of calling `validate.yaml`, and
-so carries its own copy of the `.artifacts` cache. The two are meant to stay
-identical: a change to one is a change to both.
+shares the `.artifacts` cache with it through
+[`actions/artifacts-cache`](../../actions/artifacts-cache).
 
 ## Where `release-docker.yaml` deploys to
 

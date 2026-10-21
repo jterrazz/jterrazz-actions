@@ -7,6 +7,9 @@ The three gates run against a restored `.artifacts/`, the single root every
 for the incremental buildinfo, then `vitest/`, `knip/`, `next/`, `cargo/`,
 `playwright/`. One entry warms every toolchain in the repo at once, so a
 compile survives between runs instead of starting cold on every push.
+[`actions/artifacts-cache`](../../actions/artifacts-cache) restores it before
+the gates and saves it after them, in `validate.yaml` and `release-go.yaml`
+alike.
 
 A consumer does nothing to benefit but point its tools there, as
 [wire-a-repository.md](../guides/wire-a-repository.md). A repository that writes nothing

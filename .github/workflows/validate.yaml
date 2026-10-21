@@ -50,20 +50,9 @@ jobs:
 
       - name: Restore build artifacts
         id: artifacts
-        uses: actions/cache/restore@v4
+        uses: jterrazz/jterrazz-actions/actions/artifacts-cache@main
         with:
-          path: .artifacts
-          # invariant: every run saves under its own run_id, so the fallbacks are
-          # what actually restores: this branch's most recent run first,
-          # then any branch's on the same lockfile (main, in practice),
-          # then any lockfile's. A repo that writes nothing under
-          # .artifacts simply misses, and a stale restore on such a repo
-          # is inert: no target reads it.
-          key: artifacts-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-${{ github.ref_name }}
-          restore-keys: |
-            artifacts-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-${{ github.ref_name }}-
-            artifacts-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-
-            artifacts-${{ runner.os }}-
+          phase: restore
 
       - name: Build
         run: make build
@@ -145,16 +134,9 @@ jobs:
       - name: Save build artifacts
         # value: always(): a red run still compiled and still wrote a tsc
         # buildinfo, and the retry that follows is exactly when the warm
-        # tree is worth most. No cache-hit guard is needed: the run_id
-        # below makes this key new on every run, so it is never a hit.
+        # tree is worth most.
         if: always()
-        uses: actions/cache/save@v4
+        uses: jterrazz/jterrazz-actions/actions/artifacts-cache@main
         with:
-          path: .artifacts
-          # invariant: the restore step's own key, so install steps that touch a
-          # lockfile between the two cannot shift the hash under us,
-          # plus the run_id, because a cache key is immutable once
-          # written and a buildinfo changes with every commit. One entry
-          # per run keeps the cache tracking HEAD; the restore's first
-          # fallback picks the newest.
-          key: ${{ steps.artifacts.outputs.cache-primary-key }}-${{ github.run_id }}
+          phase: save
+          key: ${{ steps.artifacts.outputs.key }}

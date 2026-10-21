@@ -36,19 +36,11 @@ jobs:
         with:
           go-version: ${{ inputs.go-version }}
 
-      # invariant: this job runs the three gates itself rather than calling
-      # validate.yaml, so it carries its own copy of that workflow's
-      # .artifacts cache. Read the rationale there.
       - name: Restore build artifacts
         id: artifacts
-        uses: actions/cache/restore@v4
+        uses: jterrazz/jterrazz-actions/actions/artifacts-cache@main
         with:
-          path: .artifacts
-          key: artifacts-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-${{ github.ref_name }}
-          restore-keys: |
-            artifacts-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-${{ github.ref_name }}-
-            artifacts-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-
-            artifacts-${{ runner.os }}-
+          phase: restore
 
       - name: Build
         run: make build
@@ -61,10 +53,10 @@ jobs:
 
       - name: Save build artifacts
         if: always()
-        uses: actions/cache/save@v4
+        uses: jterrazz/jterrazz-actions/actions/artifacts-cache@main
         with:
-          path: .artifacts
-          key: ${{ steps.artifacts.outputs.cache-primary-key }}-${{ github.run_id }}
+          phase: save
+          key: ${{ steps.artifacts.outputs.key }}
 
   release:
     name: Release
