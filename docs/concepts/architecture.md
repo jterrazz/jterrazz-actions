@@ -7,7 +7,7 @@ workflow validates; four release, and each of them validates first.
 
 | Workflow                | Purpose                                                              | Trigger in the caller       |
 | ----------------------- | -------------------------------------------------------------------- | --------------------------- |
-| `validate.yaml`         | `make build` + `make lint` + `make test` (+ `make mutation`, + `make test-mobile` on macOS) | push / PR to `main`         |
+| `validate.yaml`         | `make build` + `make lint` + `make test` (+ `make mutation`)       | push / PR to `main`         |
 | `release-docker.yaml`   | Validate (no mutation), Docker build, Helm deploy to the cluster, then prune old tags | push to `main`, `v*` tags   |
 | `release-npm.yaml`      | Validate (no mutation), then `npm publish` with OIDC provenance                    | GitHub Release              |
 | `release-go.yaml`       | Cross-compile Go binaries into a GitHub Release                      | `v*` tags                   |
@@ -22,6 +22,8 @@ interface, which is all a repo has to expose whatever its toolchain. A
 mutant a test runs and none detects: the module tests over the sources they
 test, and the whole suite over the lines the push or the pull request
 changed that no module test runs.
+
+### The mutation range
 
 The step hands it that range as
 `TYPESCRIPT_MUTATION_SINCE` (the pull request's base, else the commit the
@@ -46,6 +48,8 @@ reach, and a large package's run takes hours. That is why a release skips it:
 gated it already. A Docker app whose push to `main` is its release therefore
 runs mutation on its pull requests only.
 
+### Which run a newer one cancels
+
 A newer run cancels the one it makes useless, and only that one: validate
 holds a concurrency group per caller workflow and ref for a pull request,
 whose next run gates the same base, and for a push to a branch other than
@@ -56,38 +60,13 @@ each of those runs in a group of its own run id. The group name opens with
 `validate-` so it never equals a group the caller's own workflow holds,
 which GitHub resolves by cancelling one of the two.
 
+### Inputs
+
 | Input          | Default | Effect                                                                       |
 | -------------- | ------- | ---------------------------------------------------------------------------- |
 | `node-version` | `'24'`  | Installs Node with an npm cache. An explicit empty string skips the setup entirely; a caller that passes a version keeps it. |
 | `browsers`     | `false` | Provisions Playwright chromium before Test, cached by the version read from whichever lockfile the caller has: `package-lock.json`, `bun.lock`, or `pnpm-lock.yaml`, tried in that order. For suites that render pages through `specification.website()` (`@jterrazz/test`). |
 | `mutation`     | `true`  | Runs the `Makefile`'s `mutation` target after Test, where it has one. The release workflows pass `false`. |
-
-### The mobile job
-
-A repository that declares mobile in its `jterrazz.config.ts` (`kind:
-'mobile'`, or a test project of `facet: 'mobile'`) gets a second job, on
-`macos-26` with Xcode 26.5 selected, the image and the Xcode whose iOS 26.5
-simulator the mobile specs pin: `make test-mobile`, its mobile specs against a
-real simulator rather than the protocol double `make test` drives. The image
-is pinned, not `macos-latest`, so a drift of the runner fails no run that no
-change caused; moving the simulator a repository pins moves this pin with it,
-and a missing Xcode fails the job naming the ones the image holds. The
-declaration is the whole opt-in; a repository that declares mobile and names
-no `test-mobile` target fails the job that decides, naming the target it
-owes.
-
-It runs when the push or the pull request changes what those specs drive:
-any change for a mobile app, and, for a repository that only tests one (the
-mobile facet of `@jterrazz/test`), a path naming `mobile` or `ios` or a
-change of its dependencies (`package.json` or a lockfile, where the
-simulator's client is pinned). A macOS minute costs ten Linux ones, so a
-change that cannot alter a simulator run does not pay for one; a new branch,
-whose base it cannot diff, always runs. The shared workflow runs on no
-schedule, which the declaration exists to spare its callers. The one thing
-the path filter cannot see is a facet's shared core, the runner code the
-mobile facet runs on beside every other, so the repository that carries one
-schedules its own caller weekly (`@jterrazz/test`), and a run with no commit
-to diff from always runs the job.
 
 The `.artifacts/` cache the three gates run against is its own concept: [artifacts-cache.md](artifacts-cache.md).
 

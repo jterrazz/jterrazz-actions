@@ -15,10 +15,6 @@ Four rules hold everywhere:
   workflow runs it first.
 - Build and tool state goes under `.artifacts/<tool>/`, gitignored. That is
   the whole opt-in to CI caching; see below.
-- A repository whose `jterrazz.config.ts` declares mobile (`kind: 'mobile'`,
-  or a `facet: 'mobile'` test project) exposes `test-mobile`, which validate
-  runs on macOS when a change reaches the mobile specs
-  ([architecture](../concepts/architecture.md#the-mobile-job)).
 
 ## Caching your build
 
