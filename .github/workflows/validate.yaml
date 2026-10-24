@@ -94,7 +94,26 @@ jobs:
 
       - name: Install Playwright browsers
         if: inputs.browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
+
+      - name: Install Playwright system dependencies
+        if: inputs.browsers
+        # outside: a fresh runner lacks some of chromium's packages (xvfb, fonts, nss),
+        # so apt runs every time, and an apt mirror sometimes stalls for 5-10
+        # minutes mid-download. Each attempt is bounded at 2 minutes and
+        # retried against a fresh connection. It runs as root so that
+        # `timeout` kills apt along with npx, rather than a sudo child it
+        # cannot reach; a kill during unpacking is finished by
+        # `dpkg --configure -a` before the next attempt.
+        run: |
+          for attempt in 1 2 3; do
+            if sudo env "PATH=$PATH" timeout -k 10 120 npx playwright install-deps chromium; then
+              exit 0
+            fi
+            echo "::warning::Playwright system dependencies, attempt $attempt of 3, failed or stalled past 2 minutes"
+            sudo dpkg --configure -a
+          done
+          exit 1
 
       - name: Lint
         run: make lint

@@ -77,7 +77,7 @@ two.
 | Input          | Default | Effect                                                                       |
 | -------------- | ------- | ---------------------------------------------------------------------------- |
 | `node-version` | `'24'`  | Installs Node with an npm cache. An explicit empty string skips the setup entirely; a caller that passes a version keeps it. |
-| `browsers`     | `false` | Provisions Playwright chromium before Test, cached by the version read from whichever lockfile the caller has: `package-lock.json`, `bun.lock`, or `pnpm-lock.yaml`, tried in that order. For suites that render pages through `specification.website()` (`@jterrazz/test`). |
+| `browsers`     | `false` | Provisions Playwright chromium before Test, cached by the version read from whichever lockfile the caller has: `package-lock.json`, `bun.lock`, or `pnpm-lock.yaml`, tried in that order, then its system packages, each attempt bounded at 2 minutes and retried up to 3 times. For suites that render pages through `specification.website()` (`@jterrazz/test`). |
 | `mutation`     | `true`  | Runs the `Makefile`'s `mutation` target after Test, where it has one. `release-npm.yaml` passes `false`; `release-docker.yaml` forwards its own. |
 
 The `.artifacts/` cache the three gates run against is its own concept: [artifacts-cache.md](artifacts-cache.md).
