@@ -64,7 +64,10 @@ runs:
         cat > "$plugin" <<'PLUGIN'
         #!/usr/bin/env bash
         set -euo pipefail
-        token=$(curl -sSf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+        # outside: GitHub's token endpoint answers a passing 503 now and then (seen on
+        # the first OIDC deploy, 2026-10-24), and kubectl/helm call this once per
+        # process, several times per job.
+        token=$(curl -sSf --retry 5 --retry-all-errors --retry-delay 2 -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
           "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$GITHUB_OIDC_AUDIENCE" | jq -r .value)
         # value: GitHub's tokens live longer than 4 minutes; asking again before
         # then costs one request and never presents an expired one.
