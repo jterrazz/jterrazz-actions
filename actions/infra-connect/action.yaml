@@ -1,19 +1,19 @@
 name: Connect to infrastructure
-description: Fetch secrets from Infisical, join the tailnet with GitHub OIDC, and log in to the container registry
+description: With the job's GitHub OIDC token alone, read the registry account from Infisical, join the tailnet and log in to the registry
 
 inputs:
-  infisical-client-id:
-    description: Infisical client ID
-    required: true
-  infisical-client-secret:
-    description: Infisical client secret
-    required: true
+  # invariant: the only secrets CI reads from Infisical are the registry account's,
+  # held alone in the `jterrazz-ci` project, which this OIDC identity can view
+  # and nothing else (custom path-scoped roles are a paid Infisical feature).
+  # Identifiers, not secrets: the identity trusts
+  # repo:jterrazz@18480834/*:ref:refs/heads/main with audience
+  # https://github.com/jterrazz.
+  infisical-identity-id:
+    description: Infisical machine identity (OIDC auth) that CI authenticates as
+    default: "d9c2032f-2f4d-4ef4-85be-19df1bc70023"
   infisical-project-slug:
-    description: Infisical project slug
-    default: "jterrazz"
-  infisical-secret-path:
-    description: Infisical secret path
-    default: "/jterrazz-actions"
+    description: Infisical project holding the registry account
+    default: "jterrazz-ci-v-nh-8"
   registry:
     description: Container registry hostname
     default: "registry.internal.jterrazz.com"
@@ -27,20 +27,20 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Fetch secrets
-      uses: Infisical/secrets-action@v1.0.9
+    - name: Fetch secrets (GitHub OIDC)
+      uses: Infisical/secrets-action@d2e351f16c6ca20d17c85e6c992e04bdeb64e87d # v1.0.18
       with:
-        method: universal
-        client-id: ${{ inputs.infisical-client-id }}
-        client-secret: ${{ inputs.infisical-client-secret }}
+        method: oidc
+        identity-id: ${{ inputs.infisical-identity-id }}
+        oidc-audience: https://github.com/jterrazz
         domain: https://eu.infisical.com
         project-slug: ${{ inputs.infisical-project-slug }}
         env-slug: prod
-        secret-path: ${{ inputs.infisical-secret-path }}
+        secret-path: /
 
     # invariant: no Tailscale secret. The job's GitHub OIDC token is exchanged for a node
     # key through a Tailscale trust credential (workload identity federation)
-    # that trusts `repo:jterrazz/*:ref:refs/heads/main` for tag:ci. The client
+    # that trusts `repo:jterrazz@18480834/*:ref:refs/heads/main` for tag:ci. The client
     # ID and audience are identifiers, not secrets. The calling job must grant
     # `id-token: write` (every deploying job already does).
     - name: Connect Tailscale
