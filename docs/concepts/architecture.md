@@ -59,10 +59,18 @@ holds a concurrency group per caller workflow and ref for a pull request,
 whose next run gates the same base, and for a push to a branch other than
 the default. A push to the default branch is never cancelled, since its
 mutation range (the commit before it to this one) is measured by no later
-run, and neither is a release (`mutation: false`, a tag, a release event):
-each of those runs in a group of its own run id. The group name opens with
-`validate-` so it never equals a group the caller's own workflow holds,
-which GitHub resolves by cancelling one of the two.
+run, and neither is a release (`mutation: false`, a tag, a release event).
+
+Those queue in a group of their commit's SHA instead, so a release's validate
+waits for the push's validate of the same commit and then restores the
+verdict it saved ([artifacts-cache.md](artifacts-cache.md)) instead of
+proving the tree a second time. GitHub keeps one pending run per group and
+cancels an older pending one, which is safe while a commit has at most two
+such runs, its push and its release.
+
+The group name opens with `validate-` so it never equals a group the
+caller's own workflow holds, which GitHub resolves by cancelling one of the
+two.
 
 ### Inputs
 

@@ -20,11 +20,16 @@ on:
 # shares a group a newer run cancels: its successor gates the same base, or a
 # branch nothing deploys. A push to the default branch hands mutation the range
 # since the commit before it, which no later run measures again, and a release
-# (`mutation: false`, a tag, a release event) must finish, so each of those
-# runs alone in a group of its own run id. The `validate-` prefix keeps the
-# group apart from any group the caller's workflow holds, which would deadlock.
+# (`mutation: false`, a tag, a release event) must finish, so none of those is
+# ever cancelled. They queue instead, in a group of their commit: a release's
+# validate starts once the push's validate of the same commit has finished,
+# and restores the verdict it saved rather than proving the tree again.
+# GitHub keeps one pending run per group, which holds while a commit has at
+# most two such runs (its push and its release). The `validate-` prefix keeps
+# the group apart from any group the caller's workflow holds, which would
+# deadlock.
 concurrency:
-  group: validate-${{ github.workflow }}-${{ (inputs.mutation && (github.event_name == 'pull_request' || (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/') && github.ref_name != github.event.repository.default_branch))) && github.ref || github.run_id }}
+  group: validate-${{ (inputs.mutation && (github.event_name == 'pull_request' || (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/') && github.ref_name != github.event.repository.default_branch))) && format('{0}-{1}', github.workflow, github.ref) || github.sha }}
   cancel-in-progress: ${{ inputs.mutation && (github.event_name == 'pull_request' || (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/') && github.ref_name != github.event.repository.default_branch)) }}
 
 jobs:
