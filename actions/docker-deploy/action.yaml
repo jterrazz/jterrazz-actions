@@ -14,6 +14,14 @@ inputs:
   manifest:
     description: Path to the Helm values manifest
     default: ".infrastructure/application.yaml"
+  api-server:
+    description: The cluster's API server, reached over the tailnet
+    default: "https://jterrazz-infrastructure.tail77a797.ts.net:6443"
+  audience:
+    # invariant: hand-synced with `k3s_oidc_audience` in jterrazz-infrastructure
+    # (ansible/inventories/group_vars/all.yml): the apiserver accepts no other.
+    description: Audience of the GitHub OIDC token presented to the API server
+    default: "jterrazz-infrastructure"
   timeout:
     description: Helm deploy timeout
     # value: 5m gives cert-manager headroom on the first deploy that introduces
@@ -31,12 +39,62 @@ runs:
       with:
         version: "v3.17.3"
 
-    - name: Setup kubeconfig
+    # invariant: no stored cluster credential. The job's own GitHub OIDC token IS the
+    # identity (user github:<owner>/<repo>, see jterrazz-infrastructure's
+    # authentication.yaml.j2), fetched fresh by an exec plugin whenever kubectl
+    # or helm needs one, so a long `--wait` never outlives its token. The
+    # calling job must grant `id-token: write`.
+    #
+    # The CA comes from k3s' unauthenticated /cacerts over the tailnet, which is
+    # already an authenticated network; that is what lets a repave regenerate
+    # the CA without any app repo, secret or input changing.
+    - name: Setup kubeconfig (GitHub OIDC)
       shell: bash
+      env:
+        API_SERVER: ${{ inputs.api-server }}
+        AUDIENCE: ${{ inputs.audience }}
       run: |
+        set -euo pipefail
+        if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+          echo "::error::no OIDC token available: the calling job must grant 'permissions: id-token: write'"
+          exit 1
+        fi
         mkdir -p ~/.kube
-        echo "${{ env.KUBECONFIG_BASE64 }}" | base64 -d > ~/.kube/config
+        plugin="$RUNNER_TEMP/github-oidc-credential"
+        cat > "$plugin" <<'PLUGIN'
+        #!/usr/bin/env bash
+        set -euo pipefail
+        token=$(curl -sSf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+          "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$GITHUB_OIDC_AUDIENCE" | jq -r .value)
+        # value: GitHub's tokens live longer than 4 minutes; asking again before
+        # then costs one request and never presents an expired one.
+        expires=$(date -u -d '+4 minutes' +%Y-%m-%dT%H:%M:%SZ)
+        jq -n --arg t "$token" --arg e "$expires" \
+          '{apiVersion: "client.authentication.k8s.io/v1", kind: "ExecCredential", status: {token: $t, expirationTimestamp: $e}}'
+        PLUGIN
+        chmod 700 "$plugin"
+        ca=$(curl -sSfk "$API_SERVER/cacerts" | base64 -w0)
+        cat > ~/.kube/config <<KUBECONFIG
+        apiVersion: v1
+        kind: Config
+        clusters:
+          - name: k3s
+            cluster: {server: "$API_SERVER", certificate-authority-data: "$ca"}
+        users:
+          - name: github-oidc
+            user:
+              exec:
+                apiVersion: client.authentication.k8s.io/v1
+                command: "$plugin"
+                interactiveMode: Never
+                env: [{name: GITHUB_OIDC_AUDIENCE, value: "$AUDIENCE"}]
+        contexts:
+          - name: k3s
+            context: {cluster: k3s, user: github-oidc}
+        current-context: k3s
+        KUBECONFIG
         chmod 600 ~/.kube/config
+        kubectl auth whoami
 
     - name: Login to OCI registry
       shell: bash
@@ -69,25 +127,66 @@ runs:
     #
     # The chart is handed NO credential. `registry-credentials` (the pull
     # secret every pod on our registry mounts) is synced into the namespace by
-    # the Infisical operator from /jterrazz-actions, the same path this job read
-    # its own login from a few steps above. Passing it as a value again would
-    # put the password back on this runner's argv and into every release Secret
-    # Helm keeps; app chart 2.12.0 dropped `registry.username`/`registry.password`
-    # for exactly that reason.
+    # the Infisical operator; app chart 2.12.0 dropped
+    # `registry.username`/`registry.password` to keep it off argv.
+    #
+    # hazard: the namespace and its RoleBinding come BEFORE helm, and helm gets no
+    # `--create-namespace`. The repo owns a namespace only through the
+    # `app.jterrazz.com/repository` label it sets when creating it, and works
+    # inside it only through the RoleBinding it grants itself there; both are
+    # enforced by jterrazz-infrastructure's app-deployer-ownership policy.
+    #
+    # The image is deployed BY DIGEST, resolved from the tag just pushed: two
+    # environments on `latest` then run what each was deployed with, and a
+    # later push to the tag changes nothing until the next deploy.
     - name: Deploy
       shell: bash
+      env:
+        REGISTRY: ${{ inputs.registry }}
+        IMAGE: ${{ inputs.image-name }}
+        MANIFEST: ${{ inputs.manifest }}
+        TIMEOUT: ${{ inputs.timeout }}
+        DEPLOYMENTS: ${{ inputs.deployments }}
+        DASHBOARD_ARGS: ${{ steps.dashboards.outputs.args }}
       run: |
-        echo '${{ inputs.deployments }}' | jq -r '.[] | "\(.env)|\(.image_tag)"' | while IFS='|' read -r ENV TAG; do
+        set -euo pipefail
+        repo_name="${GITHUB_REPOSITORY#*/}"
+        echo "$DEPLOYMENTS" | jq -r '.[] | "\(.env)|\(.image_tag)"' | while IFS='|' read -r ENV TAG; do
           echo "::group::Deploying $ENV with image tag $TAG"
-          helm upgrade --install ${ENV}-${{ inputs.image-name }} \
-            oci://${{ inputs.registry }}/charts/app \
-            -f ${{ inputs.manifest }} \
-            --set environment=${ENV} \
-            --set spec.image=${{ inputs.registry }}/${{ inputs.image-name }}:${TAG} \
-            --set meta.repository=${{ github.repository }} \
-            ${{ steps.dashboards.outputs.args }} \
-            -n ${ENV}-${{ inputs.image-name }} \
-            --create-namespace \
-            --wait --timeout ${{ inputs.timeout }} --atomic
+          ns="${ENV}-${IMAGE}"
+          digest=$(docker buildx imagetools inspect "$REGISTRY/$IMAGE:$TAG" --format '{{json .Manifest}}' | jq -r .digest)
+          echo "image: $REGISTRY/$IMAGE@$digest"
+          kubectl apply -f - <<EOF
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: $ns
+          labels:
+            app.jterrazz.com/repository: $repo_name
+        ---
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: RoleBinding
+        metadata:
+          name: app-namespace-admin
+          namespace: $ns
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+          name: app-namespace-admin
+        subjects:
+          - apiGroup: rbac.authorization.k8s.io
+            kind: User
+            name: github:$GITHUB_REPOSITORY
+        EOF
+          # shellcheck disable=SC2086
+          helm upgrade --install "$ns" \
+            "oci://$REGISTRY/charts/app" \
+            -f "$MANIFEST" \
+            --set environment="$ENV" \
+            --set spec.image="$REGISTRY/$IMAGE@$digest" \
+            --set meta.repository="$GITHUB_REPOSITORY" \
+            $DASHBOARD_ARGS \
+            -n "$ns" \
+            --wait --timeout "$TIMEOUT" --atomic
           echo "::endgroup::"
         done
