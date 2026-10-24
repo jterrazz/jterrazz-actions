@@ -111,7 +111,7 @@ holding one `action.yaml`.
 | [`actions/infra-connect`](../../actions/infra-connect)     | Fetches the secrets from Infisical, joins Tailscale as `tag:ci`, logs in to the container registry |
 | [`actions/docker-build`](../../actions/docker-build)       | Builds and pushes the image with Buildx                                                            |
 | [`actions/docker-deploy`](../../actions/docker-deploy)     | Deploys with `helm upgrade --install` against the shared app chart                                 |
-| [`actions/docker-cleanup`](../../actions/docker-cleanup)   | Prunes old `v*` tags and runs registry garbage collection                                          |
+| [`actions/docker-cleanup`](../../actions/docker-cleanup)   | Prunes old `v*` tags and the node's unreferenced containerd content                                |
 
 **infra-connect.** One step for the three connections a deploy needs. It
 fetches from Infisical project `jterrazz`, environment `prod`, path
@@ -146,6 +146,13 @@ Steady-state upgrades finish in seconds, so the higher default costs nothing.
 `keep-latest-versions` (default `3`), over the registry's HTTP API with a netrc file rather
 than a `curl -u` argument, since an argument sits in `ps` for anything else on the
 runner to read, for as long as the step runs.
+
+It then prunes the node's unreferenced containerd content from a privileged
+pod pinned to the `control-plane` node, and only warns when that fails, since
+the release is deployed by then. It does not collect the registry's
+garbage: the tags it deletes are swept by the infrastructure's weekly
+`registry-gc` job, which skips itself while any upload is in flight, a guard
+a collection inside a release could never pass.
 
 ## release-npm.yaml
 
