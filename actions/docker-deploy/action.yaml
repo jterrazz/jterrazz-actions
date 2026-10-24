@@ -188,6 +188,7 @@ runs:
             --set environment="$ENV" \
             --set spec.image="$REGISTRY/$IMAGE@$digest" \
             --set meta.repository="$GITHUB_REPOSITORY" \
+            --set meta.deployId="$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
             $DASHBOARD_ARGS \
             -n "$ns" \
             --wait --timeout "$TIMEOUT" --atomic
