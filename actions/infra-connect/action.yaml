@@ -1,5 +1,5 @@
 name: Connect to infrastructure
-description: Fetch secrets from Infisical, connect Tailscale VPN, and log in to container registry
+description: Fetch secrets from Infisical, join the tailnet with GitHub OIDC, and log in to the container registry
 
 inputs:
   infisical-client-id:
@@ -17,6 +17,12 @@ inputs:
   registry:
     description: Container registry hostname
     default: "registry.internal.jterrazz.com"
+  tailscale-client-id:
+    description: Client ID of the Tailscale OIDC trust credential (not a secret)
+    default: "TV53vwCkzz11CNTRL-kitEGnqFJB11CNTRL"
+  tailscale-audience:
+    description: Audience of the Tailscale OIDC trust credential (not a secret)
+    default: "api.tailscale.com/TV53vwCkzz11CNTRL-kitEGnqFJB11CNTRL"
 
 runs:
   using: composite
@@ -32,11 +38,16 @@ runs:
         env-slug: prod
         secret-path: ${{ inputs.infisical-secret-path }}
 
+    # invariant: no Tailscale secret. The job's GitHub OIDC token is exchanged for a node
+    # key through a Tailscale trust credential (workload identity federation)
+    # that trusts `repo:jterrazz/*:ref:refs/heads/main` for tag:ci. The client
+    # ID and audience are identifiers, not secrets. The calling job must grant
+    # `id-token: write` (every deploying job already does).
     - name: Connect Tailscale
-      uses: tailscale/github-action@v3
+      uses: tailscale/github-action@99a8333667fff04fdd6cffb46dfd409f8329a7bf # v4.3.0
       with:
-        oauth-client-id: ${{ env.TAILSCALE_OAUTH_CLIENT_ID }}
-        oauth-secret: ${{ env.TAILSCALE_OAUTH_CLIENT_SECRET }}
+        oauth-client-id: ${{ inputs.tailscale-client-id }}
+        audience: ${{ inputs.tailscale-audience }}
         tags: tag:ci
 
     # hazard: the registry's name is a public CNAME to the node's tailnet name
