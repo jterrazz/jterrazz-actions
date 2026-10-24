@@ -39,6 +39,22 @@ runs:
         oauth-secret: ${{ env.TAILSCALE_OAUTH_CLIENT_SECRET }}
         tags: tag:ci
 
+    - name: Wait for the registry name
+      shell: bash
+      # outside: MagicDNS answers NXDOMAIN for the registry for a few seconds after
+      # `tailscale up` returns, and docker login does not retry a failed lookup.
+      env:
+        REGISTRY: ${{ inputs.registry }}
+      run: |
+        for _ in $(seq 1 30); do
+          if getent hosts "$REGISTRY" > /dev/null; then
+            exit 0
+          fi
+          sleep 2
+        done
+        echo "::error::$REGISTRY did not resolve within 60 s of joining the tailnet"
+        exit 1
+
     - name: Log in to registry
       uses: docker/login-action@v4
       with:

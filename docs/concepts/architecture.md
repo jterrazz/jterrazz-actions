@@ -116,7 +116,9 @@ holding one `action.yaml`.
 **infra-connect.** One step for the three connections a deploy needs. It
 fetches from Infisical project `jterrazz`, environment `prod`, path
 `/jterrazz-actions` (all three overridable), which exports the connectivity
-secrets as environment variables for the steps that follow.
+secrets as environment variables for the steps that follow. Before logging
+in, it waits up to 60 s for the registry's name to resolve: MagicDNS answers
+"no such host" for a few seconds after Tailscale comes up.
 
 **docker-build.** Buildx with `network=host`, so buildkit resolves the
 registry's `*.ts.net` name through the runner's Tailscale resolver. Without it
