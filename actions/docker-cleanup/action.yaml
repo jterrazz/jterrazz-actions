@@ -1,5 +1,5 @@
 name: Cleanup old images
-description: Remove old registry tags and prune the node's unreferenced containerd content
+description: Remove old registry tags
 
 inputs:
   registry:
@@ -67,31 +67,3 @@ runs:
             echo "Deleted: $TAG ($DIGEST)"
           fi
         done
-
-    - name: Prune containerd images
-      shell: bash
-      # outside: k3s labels its one node `node-role.kubernetes.io/control-plane`, never
-      # `master`; a selector on the old label leaves the pod unschedulable until
-      # kubectl's one-minute timeout. A failed prune leaves the release
-      # deployed, so it warns instead of failing the job.
-      # The registry's own garbage collection is not here: it is
-      # jterrazz-infrastructure's `registry-gc` CronJob, which skips itself
-      # while an upload is in flight, a guard a run inside a release cannot
-      # pass since its own push just wrote one.
-      run: |
-        if ! kubectl run "ctr-prune-$RANDOM" --rm -i --restart=Never --image=alpine:latest \
-          --overrides='{
-            "spec": {
-              "hostPID": true,
-              "nodeSelector": {"node-role.kubernetes.io/control-plane": "true"},
-              "tolerations": [{"operator": "Exists"}],
-              "containers": [{
-                "name": "prune",
-                "image": "alpine:latest",
-                "command": ["nsenter", "-t", "1", "-m", "--", "k3s", "ctr", "content", "prune", "references"],
-                "securityContext": {"privileged": true}
-              }]
-            }
-          }'; then
-          echo "::warning title=containerd prune failed::the node's unreferenced image content was not pruned; the release itself is deployed"
-        fi
