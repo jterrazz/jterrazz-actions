@@ -34,14 +34,6 @@ on:
         description: Path to Dockerfile
         default: "Dockerfile"
         type: string
-    # invariant: unread since infra-connect authenticates with GitHub OIDC; declared, not
-    # required, only so callers that still pass them do not fail. Drop with the
-    # last caller.
-    secrets:
-      INFISICAL_CLIENT_ID:
-        required: false
-      INFISICAL_CLIENT_SECRET:
-        required: false
 
 env:
   REGISTRY: registry.internal.jterrazz.com
