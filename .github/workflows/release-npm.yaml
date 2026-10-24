@@ -25,6 +25,7 @@ jobs:
     name: Publish
     needs: validate
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       id-token: write
@@ -43,4 +44,8 @@ jobs:
         run: make build
 
       - name: Publish to npm
+        # value: a publish takes seconds; when the registry degrades, npm holds
+        # the PUT open for 11-14 minutes before it fails, so the bound fails
+        # it early and leaves the rerun to whoever reads the outage.
+        timeout-minutes: 4
         run: npm publish --access public --provenance

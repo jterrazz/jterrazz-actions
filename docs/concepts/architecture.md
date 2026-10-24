@@ -162,6 +162,9 @@ Validates without mutation, then publishes with `npm publish --access public --p
 caller's workflow file must be named `release.yaml`: that name is what npm
 provenance is configured against on the package.
 
+The publish step is bounded at 4 minutes and the publish job at 15: when the
+npm registry degrades, a publish hangs for minutes instead of failing.
+
 ## release-go.yaml
 
 Validates with the same three make targets, then cross-compiles. `binary-name`
