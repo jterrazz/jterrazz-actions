@@ -39,20 +39,31 @@ runs:
         oauth-secret: ${{ env.TAILSCALE_OAUTH_CLIENT_SECRET }}
         tags: tag:ci
 
-    - name: Wait for the registry name
+    # hazard: the registry's name is a public CNAME to the node's tailnet name
+    # (<node>.<tailnet>.ts.net), and only MagicDNS answers that target. After
+    # `tailscale up` the runner's resolver sometimes takes over a minute to chase
+    # the chain, or never does (three failed deploys on 2026-10-24). So the chain
+    # is resolved here, once and explicitly: the CNAME from public DNS, its
+    # target from tailscaled itself, and the pair pinned in /etc/hosts. Nothing
+    # is hardcoded: a repave that renames the node changes only the CNAME.
+    - name: Resolve the registry over the tailnet
       shell: bash
-      # outside: MagicDNS answers NXDOMAIN for the registry for a few seconds after
-      # `tailscale up` returns, and docker login does not retry a failed lookup.
       env:
         REGISTRY: ${{ inputs.registry }}
       run: |
+        set -euo pipefail
+        command -v dig >/dev/null || sudo apt-get install -y -qq dnsutils >/dev/null
         for _ in $(seq 1 30); do
-          if getent hosts "$REGISTRY" > /dev/null; then
+          target=$(dig +short CNAME "$REGISTRY" @1.1.1.1 | sed 's/\.$//')
+          ip=$( [ -n "$target" ] && tailscale ip -4 "$target" 2>/dev/null | head -1 || true)
+          if [ -n "${ip:-}" ]; then
+            echo "$ip $REGISTRY" | sudo tee -a /etc/hosts
+            getent hosts "$REGISTRY"
             exit 0
           fi
           sleep 2
         done
-        echo "::error::$REGISTRY did not resolve within 60 s of joining the tailnet"
+        echo "::error::could not resolve $REGISTRY through its CNAME ($target) on the tailnet within 60 s"
         exit 1
 
     - name: Log in to registry
