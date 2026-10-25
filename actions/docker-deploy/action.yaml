@@ -156,7 +156,9 @@ runs:
         repo_name="${GITHUB_REPOSITORY#*/}"
         echo "$DEPLOYMENTS" | jq -r '.[] | "\(.env)|\(.image_tag)"' | while IFS='|' read -r ENV TAG; do
           echo "::group::Deploying $ENV with image tag $TAG"
-          ns="${ENV}-${IMAGE}"
+          # invariant: <app>-<env>, the one name of the namespace, release, volume and data
+          # directory (jterrazz-infrastructure ADR-023).
+          ns="${IMAGE}-${ENV}"
           digest=$(docker buildx imagetools inspect "$REGISTRY/$IMAGE:$TAG" --format '{{json .Manifest}}' | jq -r .digest)
           echo "image: $REGISTRY/$IMAGE@$digest"
           kubectl apply -f - <<EOF
@@ -165,6 +167,8 @@ runs:
         metadata:
           name: $ns
           labels:
+            app.jterrazz.com/tier: app
+            app.jterrazz.com/environment: $ENV
             app.jterrazz.com/repository: $repo_name
         ---
         apiVersion: rbac.authorization.k8s.io/v1
