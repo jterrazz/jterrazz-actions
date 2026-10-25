@@ -35,9 +35,9 @@ runs:
   using: composite
   steps:
     - name: Setup Helm
-      uses: azure/setup-helm@v4
+      uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
       with:
-        version: "v3.17.3"
+        version: "v4.3.1"
 
     # invariant: no stored cluster credential. The job's own GitHub OIDC token IS the
     # identity (user github:<owner>/<repo>, see jterrazz-infrastructure's
@@ -202,6 +202,6 @@ runs:
             $FILE_ARGS \
             -n "$ns" \
             --history-max 3 \
-            --wait --timeout "$TIMEOUT" --atomic
+            --wait --timeout "$TIMEOUT" --rollback-on-failure
           echo "::endgroup::"
         done

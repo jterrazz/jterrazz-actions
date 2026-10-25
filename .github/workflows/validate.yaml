@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # invariant: the mutation step diffs the tree against the commit the push or
           # the pull request started from.
@@ -46,7 +46,7 @@ jobs:
 
       - name: Setup Node.js
         if: inputs.node-version != ''
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ inputs.node-version }}
           # outside: setup-node's npm cache fails a repository with no package-lock.json
@@ -87,7 +87,7 @@ jobs:
 
       - name: Cache Playwright browsers
         if: inputs.browsers
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}

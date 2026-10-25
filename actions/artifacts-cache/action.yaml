@@ -43,7 +43,7 @@ runs:
     - name: Restore
       if: inputs.phase == 'restore'
       id: restore
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ inputs.path }}
         # invariant: every run saves under its own run_id, so the fallbacks are
@@ -60,7 +60,7 @@ runs:
 
     - name: Save
       if: inputs.phase == 'save'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ inputs.path }}
         # invariant: the restore phase's own key, so install steps that touch a
