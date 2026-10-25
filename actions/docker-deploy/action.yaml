@@ -101,24 +101,31 @@ runs:
 
     - name: Login to OCI registry
       shell: bash
+      env:
+        REGISTRY: ${{ inputs.registry }}
       run: |
-        echo "${{ env.DOCKER_REGISTRY_PASSWORD }}" | helm registry login ${{ inputs.registry }} \
-          --username ${{ env.DOCKER_REGISTRY_USERNAME }} --password-stdin
+        # hazard: read from the environment, never `${{ }}`-interpolated into the script text.
+        printf '%s' "$DOCKER_REGISTRY_PASSWORD" | helm registry login "$REGISTRY" \
+          --username "$DOCKER_REGISTRY_USERNAME" --password-stdin
 
-    - name: Build dashboard args
-      id: dashboards
+    # invariant: .infrastructure/dashboards/*.json and .infrastructure/alerts/*.yaml, the layout
+    # jterrazz-infrastructure itself ships its platform's in; each file is one entry, by its name.
+    - name: Build dashboard and alert args
+      id: files
       shell: bash
+      env:
+        MANIFEST: ${{ inputs.manifest }}
       run: |
-        DASHBOARD_ARGS=""
-        DASHBOARD_DIR="$(dirname ${{ inputs.manifest }})/dashboards"
-        if [ -d "$DASHBOARD_DIR" ]; then
-          for f in "$DASHBOARD_DIR"/*.json; do
-            [ -f "$f" ] || continue
-            name=$(basename "$f" .json)
-            DASHBOARD_ARGS="$DASHBOARD_ARGS --set-file spec.dashboards.$name=$f"
-          done
-        fi
-        echo "args=$DASHBOARD_ARGS" >> "$GITHUB_OUTPUT"
+        set -euo pipefail
+        args=""
+        dir="$(dirname "$MANIFEST")"
+        for f in "$dir"/dashboards/*.json; do
+          [ -f "$f" ] && args="$args --set-file spec.dashboards.$(basename "$f" .json)=$f"
+        done
+        for f in "$dir"/alerts/*.yaml; do
+          [ -f "$f" ] && args="$args --set-file spec.alerts.$(basename "$f" .yaml)=$f"
+        done
+        echo "args=$args" >> "$GITHUB_OUTPUT"
 
     # invariant: `github.repository` is the CALLING repo even through the reusable
     # workflow, which is the point: the app chart stamps it on the Deployment as
@@ -150,7 +157,7 @@ runs:
         MANIFEST: ${{ inputs.manifest }}
         TIMEOUT: ${{ inputs.timeout }}
         DEPLOYMENTS: ${{ inputs.deployments }}
-        DASHBOARD_ARGS: ${{ steps.dashboards.outputs.args }}
+        FILE_ARGS: ${{ steps.files.outputs.args }}
       run: |
         set -euo pipefail
         repo_name="${GITHUB_REPOSITORY#*/}"
@@ -192,8 +199,7 @@ runs:
             --set environment="$ENV" \
             --set spec.image="$REGISTRY/$IMAGE@$digest" \
             --set meta.repository="$GITHUB_REPOSITORY" \
-            --set meta.deployId="$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
-            $DASHBOARD_ARGS \
+            $FILE_ARGS \
             -n "$ns" \
             --history-max 3 \
             --wait --timeout "$TIMEOUT" --atomic
