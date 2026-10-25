@@ -111,22 +111,28 @@ root.
 ### The composite actions it is built from
 
 `release-docker.yaml` is the one workflow with steps of its own beyond
-`validate.yaml`: four composite actions, each a directory under `actions/`
+`validate.yaml`: five composite actions, each a directory under `actions/`
 holding one `action.yaml`.
 
 | Action                                                | Does                                                                                                |
 | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
 | [`actions/infra-connect`](../../actions/infra-connect)     | Fetches the secrets from Infisical, joins Tailscale as `tag:ci`, logs in to the container registry |
+| [`actions/cluster-connect`](../../actions/cluster-connect) | Points kubectl and helm at the cluster as the job's GitHub OIDC identity                           |
 | [`actions/docker-build`](../../actions/docker-build)       | Builds and pushes the image with Buildx                                                            |
 | [`actions/docker-deploy`](../../actions/docker-deploy)     | Deploys with `helm upgrade --install` against the shared app chart                                 |
 | [`actions/docker-cleanup`](../../actions/docker-cleanup)   | Prunes old `v*` tags and the node's unreferenced containerd content                                |
 
-**infra-connect.** One step for the three connections a deploy needs. It
-fetches from Infisical project `jterrazz`, environment `prod`, path
-`/jterrazz-actions` (all three overridable), which exports the connectivity
-secrets as environment variables for the steps that follow. Before logging
-in, it waits up to 60 s for the registry's name to resolve: MagicDNS answers
-"no such host" for a few seconds after Tailscale comes up.
+**infra-connect.** One step for the three connections a deploy needs, with
+the job's GitHub OIDC token alone. It reads the registry account from
+Infisical project `jterrazz-ci`, joins Tailscale through a trust credential,
+resolves the registry's CNAME over the tailnet and pins it in `/etc/hosts`
+(the runner's resolver sometimes never chases it), then logs in.
+
+**cluster-connect.** Writes a kubeconfig whose user is an exec plugin minting
+the job's OIDC token on demand, so a long `--wait` never outlives a token, and
+exports `KUBECONFIG`. The CA is read from k3s' `/cacerts` over the tailnet, so
+a repave changes nothing here. `docker-deploy` calls it, and so does
+`jterrazz-infrastructure`'s Smoke workflow.
 
 **docker-build.** Buildx with `network=host`, so buildkit resolves the
 registry's `*.ts.net` name through the runner's Tailscale resolver. Without it
