@@ -104,7 +104,7 @@ runs:
       env:
         REGISTRY: ${{ inputs.registry }}
       run: |
-        # hazard: read from the environment, never `${{ }}`-interpolated into the script text.
+        # hazard: read from the environment, never interpolated into the script text by an expression.
         printf '%s' "$DOCKER_REGISTRY_PASSWORD" | helm registry login "$REGISTRY" \
           --username "$DOCKER_REGISTRY_USERNAME" --password-stdin
 
