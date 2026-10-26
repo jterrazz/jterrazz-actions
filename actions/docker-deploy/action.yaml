@@ -16,12 +16,12 @@ inputs:
     default: ".infrastructure/application.yaml"
   api-server:
     description: The cluster's API server, reached over the tailnet
-    default: "https://jterrazz-infrastructure.tail77a797.ts.net:6443"
+    default: "https://studio-infrastructure.tail77a797.ts.net:6443"
   audience:
     # invariant: hand-synced with `k3s_oidc_audience` in studio-infrastructure
     # (src/ansible/inventories/group_vars/all/k3s.yml): the apiserver accepts no other.
     description: Audience of the GitHub OIDC token presented to the API server
-    default: "jterrazz-infrastructure"
+    default: "studio-infrastructure"
   timeout:
     description: Helm deploy timeout
     # value: 5m gives cert-manager headroom on the first deploy that introduces
