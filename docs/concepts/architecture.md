@@ -124,7 +124,7 @@ holding one `action.yaml`.
 
 **infra-connect.** One step for the three connections a deploy needs, with
 the job's GitHub OIDC token alone. It reads the registry account from
-Infisical project `jterrazz-ci`, joins Tailscale through a trust credential,
+Infisical project `studio-ci`, joins Tailscale through a trust credential,
 resolves the registry's CNAME over the tailnet and pins it in `/etc/hosts`
 (the runner's resolver sometimes never chases it), then logs in.
 

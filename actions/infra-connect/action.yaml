@@ -3,7 +3,7 @@ description: With the job's GitHub OIDC token alone, read the registry account f
 
 inputs:
   # invariant: the only secrets CI reads from Infisical are the registry account's,
-  # held alone in the `jterrazz-ci` project, which this OIDC identity can view
+  # held alone in the `studio-ci` project, which this OIDC identity can view
   # and nothing else (custom path-scoped roles are a paid Infisical feature).
   # Identifiers, not secrets: the identity trusts
   # repo:jterrazz@18480834/*:ref:refs/heads/main with audience
@@ -13,7 +13,7 @@ inputs:
     default: "d9c2032f-2f4d-4ef4-85be-19df1bc70023"
   infisical-project-slug:
     description: Infisical project holding the registry account
-    default: "jterrazz-ci-v-nh-8"
+    default: "studio-ci"
   registry:
     description: Container registry hostname
     default: "registry.internal.jterrazz.com"
