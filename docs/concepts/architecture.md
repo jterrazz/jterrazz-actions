@@ -132,7 +132,7 @@ resolves the registry's CNAME over the tailnet and pins it in `/etc/hosts`
 the job's OIDC token on demand, so a long `--wait` never outlives a token, and
 exports `KUBECONFIG`. The CA is read from k3s' `/cacerts` over the tailnet, so
 a repave changes nothing here. `docker-deploy` calls it, and so does
-`jterrazz-infrastructure`'s Smoke workflow.
+`studio-infrastructure`'s Smoke workflow.
 
 **docker-build.** Buildx with `network=host`, so buildkit resolves the
 registry's `*.ts.net` name through the runner's Tailscale resolver. Without it
@@ -146,7 +146,7 @@ It passes `meta.repository=${{ github.repository }}`, which through a reusable
 workflow is still the calling repository. The app chart stamps it on the
 Deployment as `app.jterrazz.com/repository`, and that annotation is the only
 place the cluster records which repository rebuilds a workload:
-`jterrazz-infrastructure`'s `make redeploy-apps` reads it off the live
+`studio-infrastructure`'s `make redeploy-apps` reads it off the live
 Deployments instead of holding a list that goes stale. An app that stops
 passing it drops out of the fleet rebuild.
 
@@ -191,6 +191,6 @@ shares the `.artifacts` cache with it through
 
 ## Where `release-docker.yaml` deploys to
 
-The cluster is [jterrazz/jterrazz-infrastructure](https://github.com/jterrazz/jterrazz-infrastructure).
+The cluster is [jterrazz/studio-infrastructure](https://github.com/jterrazz/studio-infrastructure).
 What an app repository owes it, and the `application.yaml` schema
 `docker-deploy` renders, are that repository's documentation, not this one's.

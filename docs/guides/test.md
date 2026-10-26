@@ -9,7 +9,7 @@ honestly rather than as a gap to explain away.
 ## What `make lint` proves
 
 `make lint` runs `typescript check` from `@jterrazz/typescript`, and
-`jterrazz.config.ts` declares this repository `content`: it has no code of the
+`studio.config.ts` declares this repository `content`: it has no code of the
 toolchain's, so the check runs the seven passes that mean something there. The
 manual is cut into `start/`, `guides/`, `concepts/`, `reference/` and
 `decisions/`, the map links only its own pages, and the required pages exist;

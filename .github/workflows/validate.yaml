@@ -55,7 +55,7 @@ jobs:
 
       - name: Restore build artifacts
         id: artifacts
-        uses: jterrazz/jterrazz-actions/actions/artifacts-cache@main
+        uses: jterrazz/studio-actions/actions/artifacts-cache@main
         with:
           phase: restore
 
@@ -124,7 +124,7 @@ jobs:
       - name: Resolve the mutation range
         if: inputs.mutation
         id: since
-        uses: jterrazz/jterrazz-actions/actions/mutation-since@main
+        uses: jterrazz/studio-actions/actions/mutation-since@main
 
       - name: Mutation
         # invariant: only a Makefile with a `mutation` target runs it, and only when the
@@ -160,7 +160,7 @@ jobs:
         # buildinfo, and the retry that follows is exactly when the warm
         # tree is worth most.
         if: always()
-        uses: jterrazz/jterrazz-actions/actions/artifacts-cache@main
+        uses: jterrazz/studio-actions/actions/artifacts-cache@main
         with:
           phase: save
           key: ${{ steps.artifacts.outputs.key }}

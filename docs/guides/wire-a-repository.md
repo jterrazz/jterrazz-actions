@@ -47,7 +47,7 @@ on:
   pull_request: { branches: [main] }
 jobs:
   validate:
-    uses: jterrazz/jterrazz-actions/.github/workflows/validate.yaml@main
+    uses: jterrazz/studio-actions/.github/workflows/validate.yaml@main
     with: { node-version: "24" }
     # browsers: true provisions Playwright chromium for specification.website() suites
 ```
@@ -60,7 +60,7 @@ on:
 permissions: { contents: read, id-token: write }
 jobs:
   release:
-    uses: jterrazz/jterrazz-actions/.github/workflows/release-npm.yaml@main
+    uses: jterrazz/studio-actions/.github/workflows/release-npm.yaml@main
     with: { node-version: "24" }
     secrets: inherit
 ```
@@ -78,7 +78,7 @@ on:
   pull_request: { branches: [main] }
 jobs:
   validate:
-    uses: jterrazz/jterrazz-actions/.github/workflows/validate.yaml@main
+    uses: jterrazz/studio-actions/.github/workflows/validate.yaml@main
     with: { node-version: "24" }
 ```
 
@@ -96,7 +96,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   release:
-    uses: jterrazz/jterrazz-actions/.github/workflows/release-docker.yaml@main
+    uses: jterrazz/studio-actions/.github/workflows/release-docker.yaml@main
     with:
       image-name: my-app
       node-version: "24"
@@ -108,7 +108,7 @@ jobs:
 
 The app also owns `.infrastructure/application.yaml`, the manifest the app
 chart renders. Its schema, and everything the cluster promises in return, are
-`jterrazz-infrastructure`'s.
+`studio-infrastructure`'s.
 
 ## Go tool
 
@@ -121,6 +121,6 @@ on:
 permissions: { contents: write }
 jobs:
   release:
-    uses: jterrazz/jterrazz-actions/.github/workflows/release-go.yaml@main
+    uses: jterrazz/studio-actions/.github/workflows/release-go.yaml@main
     with: { binary-name: j, build-path: ./src/cmd/j }
 ```

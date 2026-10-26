@@ -38,7 +38,7 @@ jobs:
 
       - name: Restore build artifacts
         id: artifacts
-        uses: jterrazz/jterrazz-actions/actions/artifacts-cache@main
+        uses: jterrazz/studio-actions/actions/artifacts-cache@main
         with:
           phase: restore
 
@@ -53,7 +53,7 @@ jobs:
 
       - name: Save build artifacts
         if: always()
-        uses: jterrazz/jterrazz-actions/actions/artifacts-cache@main
+        uses: jterrazz/studio-actions/actions/artifacts-cache@main
         with:
           phase: save
           key: ${{ steps.artifacts.outputs.key }}

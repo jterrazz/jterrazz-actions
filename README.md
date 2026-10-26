@@ -1,4 +1,4 @@
-# jterrazz-actions
+# studio-actions
 
 Shared CI and CD for the `@jterrazz` ecosystem: reusable GitHub Actions
 workflows and composite actions that every project calls to validate and
@@ -25,7 +25,7 @@ on:
   pull_request: { branches: [main] }
 jobs:
   validate:
-    uses: jterrazz/jterrazz-actions/.github/workflows/validate.yaml@main
+    uses: jterrazz/studio-actions/.github/workflows/validate.yaml@main
     with: { node-version: "24" }
 ```
 
@@ -41,4 +41,4 @@ Go.
 [secrets](docs/reference/secrets.md) for what it needs to be given.
 
 The cluster these workflows deploy to is
-[jterrazz/jterrazz-infrastructure](https://github.com/jterrazz/jterrazz-infrastructure).
+[jterrazz/studio-infrastructure](https://github.com/jterrazz/studio-infrastructure).

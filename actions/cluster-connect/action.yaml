@@ -6,7 +6,7 @@ inputs:
     description: The cluster's API server, reached over the tailnet
     default: "https://jterrazz-infrastructure.tail77a797.ts.net:6443"
   audience:
-    # invariant: hand-synced with `k3s_oidc_audience` in jterrazz-infrastructure
+    # invariant: hand-synced with `k3s_oidc_audience` in studio-infrastructure
     # (src/ansible/inventories/group_vars/all/k3s.yml): the apiserver accepts no other.
     description: Audience of the GitHub OIDC token presented to the API server
     default: "jterrazz-infrastructure"
@@ -15,7 +15,7 @@ runs:
   using: composite
   steps:
     # invariant: no stored cluster credential. The job's own GitHub OIDC token IS the
-    # identity (user github:<owner>/<repo>, see jterrazz-infrastructure's
+    # identity (user github:<owner>/<repo>, see studio-infrastructure's
     # authentication.yaml.j2), fetched fresh by an exec plugin whenever kubectl
     # or helm needs one, so a long `--wait` never outlives its token. The
     # calling job must grant `id-token: write`.

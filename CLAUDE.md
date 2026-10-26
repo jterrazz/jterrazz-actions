@@ -28,4 +28,4 @@ branch, not a tag.
 | Which secrets, and where do they come from?                  | [docs/reference/secrets.md](docs/reference/secrets.md)                    |
 
 The chart a Docker release deploys through, and the manifest an app owns, are
-`jterrazz-infrastructure`'s documentation, not this repository's.
+`studio-infrastructure`'s documentation, not this repository's.

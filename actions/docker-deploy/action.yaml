@@ -18,7 +18,7 @@ inputs:
     description: The cluster's API server, reached over the tailnet
     default: "https://jterrazz-infrastructure.tail77a797.ts.net:6443"
   audience:
-    # invariant: hand-synced with `k3s_oidc_audience` in jterrazz-infrastructure
+    # invariant: hand-synced with `k3s_oidc_audience` in studio-infrastructure
     # (src/ansible/inventories/group_vars/all/k3s.yml): the apiserver accepts no other.
     description: Audience of the GitHub OIDC token presented to the API server
     default: "jterrazz-infrastructure"
@@ -41,7 +41,7 @@ runs:
 
     # invariant: kubectl and helm act as the calling repository's GitHub OIDC identity.
     - name: Connect to the cluster
-      uses: jterrazz/jterrazz-actions/actions/cluster-connect@main
+      uses: jterrazz/studio-actions/actions/cluster-connect@main
       with:
         api-server: ${{ inputs.api-server }}
         audience: ${{ inputs.audience }}
@@ -56,7 +56,7 @@ runs:
           --username "$DOCKER_REGISTRY_USERNAME" --password-stdin
 
     # invariant: .infrastructure/dashboards/*.json and .infrastructure/alerts/*.yaml, the layout
-    # jterrazz-infrastructure itself ships its platform's in; each file is one entry, by its name.
+    # studio-infrastructure itself ships its platform's in; each file is one entry, by its name.
     - name: Build dashboard and alert args
       id: files
       shell: bash
@@ -77,7 +77,7 @@ runs:
     # invariant: `github.repository` is the CALLING repo even through the reusable
     # workflow, which is the point: the app chart stamps it on the Deployment as
     # `app.jterrazz.com/repository`, and that annotation is the only place the
-    # cluster records which repo rebuilds a workload. jterrazz-infrastructure's
+    # cluster records which repo rebuilds a workload. studio-infrastructure's
     # `make redeploy-apps` reads it off the live Deployments instead of holding
     # a list of repos that goes stale, so an app that stops passing this drops
     # out of the fleet rebuild.
@@ -91,7 +91,7 @@ runs:
     # `--create-namespace`. The repo owns a namespace only through the
     # `app.jterrazz.com/repository` label it sets when creating it, and works
     # inside it only through the RoleBinding it grants itself there; both are
-    # enforced by jterrazz-infrastructure's app-deployer-ownership policy.
+    # enforced by studio-infrastructure's app-deployer-ownership policy.
     #
     # The image is deployed BY DIGEST, resolved from the tag just pushed: two
     # environments on `latest` then run what each was deployed with, and a
@@ -111,7 +111,7 @@ runs:
         echo "$DEPLOYMENTS" | jq -r '.[] | "\(.env)|\(.image_tag)"' | while IFS='|' read -r ENV TAG; do
           echo "::group::Deploying $ENV with image tag $TAG"
           # invariant: <app>-<env>, the one name of the namespace, release, volume and data
-          # directory (jterrazz-infrastructure ADR-023).
+          # directory (studio-infrastructure ADR-023).
           ns="${IMAGE}-${ENV}"
           digest=$(docker buildx imagetools inspect "$REGISTRY/$IMAGE:$TAG" --format '{{json .Manifest}}' | jq -r .digest)
           echo "image: $REGISTRY/$IMAGE@$digest"

@@ -14,7 +14,7 @@ that edit opens and what else it has to stay in step with.
 | A Docker release end to end                                    | `.github/workflows/release-docker.yaml` and the four `actions/*/action.yaml` |
 | `npm publish` behaviour                                        | `.github/workflows/release-npm.yaml`                                    |
 | The Go cross-compile matrix                                    | `.github/workflows/release-go.yaml`                                     |
-| What a page tells a reader                                  | `docs/*`, then the routing tables in `CLAUDE.md` and `skills/jterrazz-workflows/SKILL.md` that mirror it |
+| What a page tells a reader                                  | `docs/*`, then the routing tables in `CLAUDE.md` and `skills/studio-workflows/SKILL.md` that mirror it |
 
 ## What a change owes
 
@@ -25,7 +25,7 @@ other, and a change to the source is not a change to its copy on its own:
   calling `validate.yaml`**, so that it can set up Go first; see the
   `release-go.yaml` section of [architecture](../concepts/architecture.md).
   The cache is not copied: both call `actions/artifacts-cache`.
-- **`CLAUDE.md`'s routing table, `skills/jterrazz-workflows/SKILL.md`'s routing
+- **`CLAUDE.md`'s routing table, `skills/studio-workflows/SKILL.md`'s routing
   table and `docs/README.md`'s map name the same pages.** A page
   renamed in one is renamed in the other two, by hand: there is no
   compiler here to catch the two that were forgotten.
