@@ -9,7 +9,7 @@ inputs:
     description: Image name (without registry prefix)
     required: true
   deployments:
-    description: JSON array of {"env","image_tag"} objects
+    description: JSON array of {"env","image_tag"} objects; env `shared` is a shared app's one release
     required: true
   manifest:
     description: Path to the Helm values manifest
@@ -76,7 +76,7 @@ runs:
 
     # invariant: `github.repository` is the CALLING repo even through the reusable
     # workflow, which is the point: the app chart stamps it on the Deployment as
-    # `app.jterrazz.com/repository`, and that annotation is the only place the
+    # `studio.jterrazz.com/repository`, and that annotation is the only place the
     # cluster records which repo rebuilds a workload. studio-infrastructure's
     # `make redeploy-apps` reads it off the live Deployments instead of holding
     # a list of repos that goes stale, so an app that stops passing this drops
@@ -89,7 +89,7 @@ runs:
     #
     # hazard: the namespace and its RoleBinding come BEFORE helm, and helm gets no
     # `--create-namespace`. The repo owns a namespace only through the
-    # `app.jterrazz.com/repository` label it sets when creating it, and works
+    # `studio.jterrazz.com/repository` label it sets when creating it, and works
     # inside it only through the RoleBinding it grants itself there; both are
     # enforced by studio-infrastructure's app-deployer-ownership policy.
     #
@@ -108,11 +108,25 @@ runs:
       run: |
         set -euo pipefail
         repo_name="${GITHUB_REPOSITORY#*/}"
+        # invariant: the image is named after the app, whose name the namespace, the Infisical
+        # folder and the ownership policy's `studio.jterrazz.com/app` label all carry.
+        app=$(yq '.metadata.name' "$MANIFEST")
+        if [ "$app" != "$IMAGE" ]; then
+          echo "::error::metadata.name ($app) differs from image-name ($IMAGE): the namespace, the secrets folder and the image must share the app's one name"
+          exit 1
+        fi
         echo "$DEPLOYMENTS" | jq -r '.[] | "\(.env)|\(.image_tag)"' | while IFS='|' read -r ENV TAG; do
           echo "::group::Deploying $ENV with image tag $TAG"
-          # invariant: <app>-<env>, the one name of the namespace, release, volume and data
-          # directory (studio-infrastructure ADR-023).
-          ns="${IMAGE}-${ENV}"
+          # invariant: <app>-<env>, or <app> for a shared app (env `shared`): the one name of the
+          # namespace, release, volume and data directory (studio-infrastructure ADR-023, ADR-029).
+          # The labels say it too, and the ownership policy holds the name to them.
+          if [ "$ENV" = "shared" ]; then
+            ns="$IMAGE"
+            scope_label="studio.jterrazz.com/scope: shared"
+          else
+            ns="${IMAGE}-${ENV}"
+            scope_label="studio.jterrazz.com/environment: $ENV"
+          fi
           digest=$(docker buildx imagetools inspect "$REGISTRY/$IMAGE:$TAG" --format '{{json .Manifest}}' | jq -r .digest)
           echo "image: $REGISTRY/$IMAGE@$digest"
           kubectl apply -f - <<EOF
@@ -121,9 +135,10 @@ runs:
         metadata:
           name: $ns
           labels:
-            app.jterrazz.com/tier: app
-            app.jterrazz.com/environment: $ENV
-            app.jterrazz.com/repository: $repo_name
+            studio.jterrazz.com/tier: app
+            studio.jterrazz.com/app: $IMAGE
+            $scope_label
+            studio.jterrazz.com/repository: $repo_name
         ---
         apiVersion: rbac.authorization.k8s.io/v1
         kind: RoleBinding

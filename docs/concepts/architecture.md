@@ -92,17 +92,20 @@ requires the two
 Infisical secrets: [secrets.md](../reference/secrets.md).
 
 Which environments a run deploys is resolved from the manifest's
-`environments` block:
+`environments` block, each entry's `branch:`:
 
-- **No environment declares a `tag:`**: a `v*` tag deploys `prod` with that
+- **No environment declares a `branch:`**: a `v*` tag deploys `prod` with that
   image tag; a push to `main` deploys `staging` with `latest`. This is the
-  legacy branch, and it is why the infrastructure side calls `tag:` mandatory:
-  without it a push silently leaves prod stale.
-- **Environments declare a `tag:`**: a `v*` tag deploys every environment
-  whose `tag:` is `next`, with the released tag; a push to `main` deploys every
-  environment whose `tag:` is `main`, with `latest`. A manual
+  legacy branch, and it is why the infrastructure side calls `branch:`
+  mandatory: without it a push silently leaves prod stale.
+- **Environments declare a `branch:`**: a `v*` tag deploys every environment
+  whose `branch:` is `next`, with the released tag; a push to `main` deploys
+  every environment whose `branch:` is `main`, with `latest`. A manual
   `workflow_dispatch` additionally deploys the environments pinned to a literal
-  tag, at that tag.
+  image tag, at that tag.
+- **A shared app** (`scope: shared`, an app every environment calls) has no
+  `environments`: its root `branch:` decides the same way, and it deploys as
+  the one environment `shared`.
 
 A monorepo app points `dockerfile:` and `manifest:` into its own directory and
 scopes its push trigger with `paths:`, keeping the build context at the repo
@@ -138,13 +141,17 @@ a repave changes nothing here. `docker-deploy` calls it, and so does
 registry's `*.ts.net` name through the runner's Tailscale resolver. Without it
 the push NXDOMAINs on the public CNAME chain.
 
-**docker-deploy.** `helm upgrade --install <env>-<image-name>` against
+**docker-deploy.** `helm upgrade --install <image-name>-<env>` (`<image-name>`
+for env `shared`) against
 `oci://registry.internal.jterrazz.com/charts/app`, with the caller's manifest
-as the values file, once per resolved deployment.
+as the values file, once per resolved deployment. It first creates the
+namespace of the same name, labelled `studio.jterrazz.com/{tier,app,repository}`
+and `environment` (or `scope: shared`), which the cluster's ownership policy
+reads; the image name must be the manifest's `metadata.name`.
 
 It passes `meta.repository=${{ github.repository }}`, which through a reusable
 workflow is still the calling repository. The app chart stamps it on the
-Deployment as `app.jterrazz.com/repository`, and that annotation is the only
+Deployment as `studio.jterrazz.com/repository`, and that annotation is the only
 place the cluster records which repository rebuilds a workload:
 `studio-infrastructure`'s `make redeploy-apps` reads it off the live
 Deployments instead of holding a list that goes stale. An app that stops

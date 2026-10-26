@@ -94,11 +94,20 @@ jobs:
           TRIGGER: ${{ steps.image.outputs.trigger }}
           IMAGE_TAG: ${{ steps.image.outputs.tag }}
           EVENT: ${{ github.event_name }}
+        # invariant: `branch` names what deploys an environment: `main` a push to main, `next` a
+        # version tag, anything else an image tag a dispatch pins. A shared app (`scope: shared`)
+        # carries one root `branch` and deploys as the one environment `shared` (studio-infrastructure
+        # ADR-029).
         run: |
-          ENVS_JSON=$(yq -o json '.environments' "$MANIFEST" 2>/dev/null || echo "{}")
-          HAS_TAGS=$(echo "$ENVS_JSON" | jq '[to_entries[].value.tag // empty] | length')
+          SCOPE=$(yq '.scope // ""' "$MANIFEST")
+          if [ "$SCOPE" = "shared" ]; then
+            ENVS_JSON=$(yq -o json '{"shared": {"branch": .branch}}' "$MANIFEST")
+          else
+            ENVS_JSON=$(yq -o json '.environments' "$MANIFEST" 2>/dev/null || echo "{}")
+          fi
+          HAS_BRANCHES=$(echo "$ENVS_JSON" | jq '[to_entries[].value.branch // empty] | length')
 
-          if [ "$HAS_TAGS" = "0" ]; then
+          if [ "$HAS_BRANCHES" = "0" ]; then
             if [ "$TRIGGER" = "tag" ]; then
               echo 'list=[{"env":"prod","image_tag":"'"$IMAGE_TAG"'"}]' >> "$GITHUB_OUTPUT"
             else
@@ -107,14 +116,14 @@ jobs:
           else
             if [ "$TRIGGER" = "tag" ]; then
               DEPLOYMENTS=$(echo "$ENVS_JSON" | jq -c --arg t "$IMAGE_TAG" \
-                '[to_entries[] | select(.value.tag == "next") | {"env": .key, "image_tag": $t}]')
+                '[to_entries[] | select(.value.branch == "next") | {"env": .key, "image_tag": $t}]')
             else
               DEPLOYMENTS=$(echo "$ENVS_JSON" | jq -c \
-                '[to_entries[] | select(.value.tag == "main") | {"env": .key, "image_tag": "latest"}]')
+                '[to_entries[] | select(.value.branch == "main") | {"env": .key, "image_tag": "latest"}]')
 
               if [ "$EVENT" = "workflow_dispatch" ]; then
                 PINNED=$(echo "$ENVS_JSON" | jq -c \
-                  '[to_entries[] | select(.value.tag != "main" and .value.tag != "next") | {"env": .key, "image_tag": .value.tag}]')
+                  '[to_entries[] | select(.value.branch != null and .value.branch != "main" and .value.branch != "next") | {"env": .key, "image_tag": .value.branch}]')
                 DEPLOYMENTS=$(echo "$DEPLOYMENTS $PINNED" | jq -c -s 'add')
               fi
             fi
