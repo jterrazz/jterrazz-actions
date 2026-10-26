@@ -50,6 +50,8 @@ jobs:
   release:
     name: Release
     needs: validate
+    # invariant: the images are linux/arm64 (the node is Apple silicon), built natively; GitHub has
+    # no -latest label for Arm, so this names the newest Arm image.
     runs-on: ubuntu-26.04-arm
     # invariant: id-token is how docker-deploy authenticates to the cluster (GitHub
     # OIDC, no stored kubeconfig). A reusable workflow can only narrow what its
