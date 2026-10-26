@@ -50,7 +50,7 @@ jobs:
   release:
     name: Release
     needs: validate
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     # invariant: id-token is how docker-deploy authenticates to the cluster (GitHub
     # OIDC, no stored kubeconfig). A reusable workflow can only narrow what its
     # caller grants, so every calling job must grant `id-token: write` too.
