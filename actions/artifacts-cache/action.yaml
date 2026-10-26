@@ -52,11 +52,11 @@ runs:
         # lockfile's. A repo that writes nothing under .artifacts simply
         # misses, and a stale restore on such a repo is inert: no target
         # reads it.
-        key: artifacts-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-${{ github.ref_name }}
+        key: artifacts-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-${{ github.ref_name }}
         restore-keys: |
-          artifacts-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-${{ github.ref_name }}-
-          artifacts-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-
-          artifacts-${{ runner.os }}-
+          artifacts-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-${{ github.ref_name }}-
+          artifacts-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-
+          artifacts-${{ runner.os }}-${{ runner.arch }}-
 
     - name: Save
       if: inputs.phase == 'save'
