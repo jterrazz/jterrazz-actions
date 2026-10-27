@@ -11,9 +11,12 @@ Four rules hold everywhere:
   on a push or a pull request; an npm release skips it, and a Docker release
   runs it when its caller passes `mutation: true`.
 - Node.js 24, except where a workflow's own default says otherwise.
-- The release caller is named `release.yaml`, because npm provenance is
+- An npm release caller is named `release.yaml`, because npm provenance is
   configured against that filename. Never skip validation: every release
   workflow runs it first.
+- No secret is stored: a releasing job grants
+  `permissions: { contents: read, id-token: write }`, and every service takes
+  that OIDC token ([secrets](../reference/secrets.md)).
 - Build and tool state goes under `.artifacts/<tool>/`, gitignored. That is
   the whole opt-in to CI caching; see below.
 
@@ -83,8 +86,8 @@ jobs:
 ```
 
 ```yaml
-# .github/workflows/release.yaml
-name: Release
+# .github/workflows/build-and-deploy.yaml
+name: Build and Deploy
 on:
   push:
     branches: [main]
@@ -95,20 +98,21 @@ concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false
 jobs:
-  release:
+  build-and-deploy:
+    permissions: { contents: read, id-token: write }
     uses: jterrazz/studio-actions/.github/workflows/release-docker.yaml@main
     with:
       image-name: my-app
       node-version: "24"
       mutation: true
-    secrets:
-      INFISICAL_CLIENT_ID: ${{ secrets.INFISICAL_CLIENT_ID }}
-      INFISICAL_CLIENT_SECRET: ${{ secrets.INFISICAL_CLIENT_SECRET }}
 ```
 
+`image-name` must equal the manifest's `metadata.name`, or the deploy refuses.
 The app also owns `.infrastructure/application.yaml`, the manifest the app
-chart renders. Its schema, and everything the cluster promises in return, are
-`studio-infrastructure`'s.
+chart renders, with a `branch:` on every environment (`main` or `next`), or at
+the root of a `scope: shared` app. Its schema, and everything the cluster
+promises in return, are `studio-infrastructure`'s
+[deploy contract](https://github.com/jterrazz/studio-infrastructure/blob/main/docs/reference/deploy-contract.md).
 
 ## Go tool
 
@@ -122,5 +126,5 @@ permissions: { contents: write }
 jobs:
   release:
     uses: jterrazz/studio-actions/.github/workflows/release-go.yaml@main
-    with: { binary-name: j, build-path: ./src/cmd/j }
+    with: { binary-name: workstation, build-path: ./src/cmd/workstation }
 ```

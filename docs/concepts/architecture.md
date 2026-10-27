@@ -2,8 +2,8 @@
 
 The shape of this repository is its catalogue: four reusable workflows in
 `.github/workflows/`, called by every `@jterrazz` repository, and the
-composite actions in `actions/` they are built from: four for
-`release-docker.yaml`, `mutation-since` for `validate.yaml`, and
+composite actions in `actions/` they are built from: five for
+`release-docker.yaml` (`cluster-connect` reached through `docker-deploy`), `mutation-since` for `validate.yaml`, and
 `artifacts-cache`, which `validate.yaml` and `release-go.yaml` share. One workflow
 validates; three release, and each of them validates first.
 
@@ -88,8 +88,8 @@ Validates, builds and pushes the image, deploys it with Helm, then prunes old
 tags. Its inputs beyond `image-name` (required) are `node-version`, `browsers`,
 `mutation` (default `false`, forwarded to validate), `timeout` (default `5m`, cert-manager headroom on a first deploy),
 `manifest` (default `.infrastructure/application.yaml`) and `dockerfile`. It
-requires the two
-Infisical secrets: [secrets.md](../reference/secrets.md).
+takes no secret: the calling job grants `id-token: write`, and every
+connection is made with that OIDC token ([secrets.md](../reference/secrets.md)).
 
 Which environments a run deploys is resolved from the manifest's
 `environments` block, each entry's `branch:`:
@@ -158,7 +158,10 @@ Deployments instead of holding a list that goes stale. An app that stops
 passing it drops out of the fleet rebuild.
 
 Any `*.json` file in a `dashboards/` directory beside the manifest is passed to
-the chart as `spec.dashboards.<name>`.
+the chart as `spec.dashboards.<name>`, and any `*.yaml` in an `alerts/`
+directory as `spec.alerts.<name>`. The image is deployed by digest, resolved
+from the tag just pushed, so two environments on `latest` each run what they
+were deployed with.
 
 The Helm timeout defaults to `5m`, which is headroom for cert-manager on a
 first deploy that introduces a new Certificate: DNS-01 against Cloudflare

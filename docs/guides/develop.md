@@ -11,7 +11,7 @@ that edit opens and what else it has to stay in step with.
 | The three gates every caller runs                              | `.github/workflows/validate.yaml`                                       |
 | The `.artifacts` cache                                         | `actions/artifacts-cache/action.yaml`                                   |
 | The range mutation measures                                    | `actions/mutation-since/action.yaml`                                    |
-| A Docker release end to end                                    | `.github/workflows/release-docker.yaml` and the four `actions/*/action.yaml` |
+| A Docker release end to end                                    | `.github/workflows/release-docker.yaml` and the five actions it reaches (`infra-connect`, `docker-build`, `docker-deploy`, `cluster-connect`, `docker-cleanup`) |
 | `npm publish` behaviour                                        | `.github/workflows/release-npm.yaml`                                    |
 | The Go cross-compile matrix                                    | `.github/workflows/release-go.yaml`                                     |
 | What a page tells a reader                                  | `docs/*`, then the routing tables in `CLAUDE.md` and `skills/studio-workflows/SKILL.md` that mirror it |

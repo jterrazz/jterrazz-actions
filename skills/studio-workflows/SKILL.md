@@ -13,7 +13,7 @@ Callers reference `@main`, so a change here lands on every repository's next
 run. The workflows are `validate`, `release-npm`, `release-docker` and
 `release-go`; the composite actions they are built from are
 `mutation-since`, `artifacts-cache`, `infra-connect`, `docker-build`,
-`docker-deploy` and `docker-cleanup`.
+`docker-deploy`, `cluster-connect` and `docker-cleanup`.
 
 ## Where to read
 
@@ -26,12 +26,13 @@ repository.
 | Changing a workflow or an action                  | `docs/guides/develop.md`          |
 | Proving a change before a consumer feels it        | `docs/guides/test.md`             |
 | Setting a repository up: the two workflow files    | `docs/guides/wire-a-repository.md` |
-| Infisical and the GitHub secrets                   | `docs/reference/secrets.md`      |
-| The `application.yaml` schema a Docker app owns    | `studio-infrastructure`, `kubernetes/charts/app/README.md` |
+| Why a caller stores no secret (GitHub OIDC)        | `docs/reference/secrets.md`      |
+| The `application.yaml` schema a Docker app owns    | [the deploy contract](https://github.com/jterrazz/studio-infrastructure/blob/main/docs/reference/deploy-contract.md), in `studio-infrastructure` |
 
 ## Always
 
 - Node.js 24, unless a workflow's own default says otherwise.
-- The release caller is named `release.yaml`, since npm provenance is configured
-  against that filename.
+- An npm release caller is named `release.yaml`, since npm provenance is
+  configured against that filename.
+- No stored secret: a releasing job grants `id-token: write`.
 - Never skip validation: every release workflow runs it first.
