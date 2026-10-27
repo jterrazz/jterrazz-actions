@@ -12,11 +12,13 @@ accepts it; the calling job only grants
 | The cluster   | The user `github:jterrazz/<repo>`, audience `studio-infrastructure`      | `cluster-connect`, an exec plugin minting fresh tokens |
 
 The identifiers in the actions' inputs (Infisical identity id, Tailscale client
-id and audience) are not secrets. Infisical and Tailscale trust
-`repo:jterrazz@18480834/*:ref:refs/heads/main` (the comments in
-`actions/infra-connect/action.yaml` own the exact subjects); the apiserver
-accepts a `jterrazz/<repo>` workflow on `main` or a `v*` tag. A pull
-request's run is trusted by none of them, so it cannot deploy.
+ids and audiences) are not secrets. Infisical, Tailscale and the apiserver
+each trust a `jterrazz` workflow on `main` or on a `v*` tag, the ref a
+`deploy: release` environment ships from: Infisical's identity through one
+subject pattern, Tailscale through two trust credentials, one per ref, since a
+credential matches one subject (the comments in
+`actions/infra-connect/action.yaml` own the exact subjects). A pull request's
+run, or a branch's, is trusted by none of them, so it cannot deploy.
 
 `registry-credentials`, the pull secret a pod mounts, is never handed to the
 chart: the Infisical operator syncs it into the namespace. What an app's own
