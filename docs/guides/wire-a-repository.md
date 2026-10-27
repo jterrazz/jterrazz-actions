@@ -92,6 +92,8 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+  # The weekly rebuild: an untouched app still takes its base image's patches.
+  schedule: [{ cron: "0 4 * * 1" }]
   workflow_dispatch:
 
 concurrency:
@@ -108,6 +110,19 @@ jobs:
 ```
 
 `image-name` must equal the manifest's `metadata.name`, or the deploy refuses.
+The `schedule:` rebuilds `main` weekly, so a floating base tag (`node:24-alpine`)
+takes its patches though no commit lands; an exact one moves through the
+Renovate preset beside the workflows:
+
+```json
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["github>jterrazz/studio-actions//renovate/apps"]
+}
+```
+
+[`renovate/apps.json`](../../renovate/apps.json) says what it moves and what
+it merges by itself.
 The app also owns `.infrastructure/application.yaml`, the manifest the app
 chart renders, with a `branch:` on every environment (`main` or `next`), or at
 the root of a `scope: shared` app. Its schema, and everything the cluster

@@ -10,7 +10,7 @@ validates; three release, and each of them validates first.
 | Workflow                | Purpose                                                              | Trigger in the caller       |
 | ----------------------- | -------------------------------------------------------------------- | --------------------------- |
 | `validate.yaml`         | `make build` + `make lint` + `make test` (+ `make mutation`)       | push / PR to `main`         |
-| `release-docker.yaml`   | Validate (mutation if asked), Docker build, Helm deploy to the cluster, then prune old tags | push to `main`, `v*` tags   |
+| `release-docker.yaml`   | Validate (mutation if asked), Docker build, Helm deploy to the cluster, then prune old tags | push to `main`, `v*` tags, a weekly schedule |
 | `release-npm.yaml`      | Validate (no mutation), then `npm publish` with OIDC provenance                    | GitHub Release              |
 | `release-go.yaml`       | Cross-compile Go binaries into a GitHub Release                      | `v*` tags                   |
 
@@ -47,7 +47,8 @@ Under CI the toolchain runs mutation cold: it reads no report the restored
 reach, and a large package's run takes hours. That is why a release skips it:
 `release-npm.yaml` calls validate with `mutation: false`, since the push or
 the pull request that brought the commit gated it already, and
-`release-docker.yaml` forwards its own `mutation` input, `false` by default. A
+`release-docker.yaml` forwards its own `mutation` input, `false` by default,
+and off on a schedule. A
 Docker app whose push to `main` is its release passes `mutation: true`, so
 that push is validated once, mutation included, instead of by a validate
 caller and then again by the release.
@@ -102,7 +103,9 @@ Which environments a run deploys is resolved from the manifest's
   whose `branch:` is `next`, with the released tag; a push to `main` deploys
   every environment whose `branch:` is `main`, with `latest`. A manual
   `workflow_dispatch` additionally deploys the environments pinned to a literal
-  image tag, at that tag.
+  image tag, at that tag. A `schedule`, the weekly rebuild that takes the base
+  image's patches, runs on `main`'s HEAD and resolves like a push to `main`,
+  with mutation off: the push that brought that commit measured it already.
 - **A shared app** (`scope: shared`, an app every environment calls) has no
   `environments`: its root `branch:` decides the same way, and it deploys as
   the one environment `shared`.

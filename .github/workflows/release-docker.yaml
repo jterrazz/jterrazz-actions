@@ -45,7 +45,10 @@ jobs:
     with:
       node-version: ${{ inputs.node-version }}
       browsers: ${{ inputs.browsers }}
-      mutation: ${{ inputs.mutation }}
+      # value: a schedule rebuilds a commit its push already gated, mutation included, and with
+      # no commit to diff from its mutation would measure everything, cold; it only re-proves
+      # build, lint and test before the base image moves.
+      mutation: ${{ inputs.mutation && github.event_name != 'schedule' }}
 
   release:
     name: Release
@@ -95,7 +98,9 @@ jobs:
           IMAGE_TAG: ${{ steps.image.outputs.tag }}
           EVENT: ${{ github.event_name }}
         # invariant: `branch` names what deploys an environment: `main` a push to main, `next` a
-        # version tag, anything else an image tag a dispatch pins. A shared app (`scope: shared`)
+        # version tag, anything else an image tag a dispatch pins. A schedule (the weekly rebuild
+        # that takes the base image's patches) runs on the default branch's HEAD, so it is a push
+        # to main here: it rebuilds `latest` and deploys the `main` environments, never `next`. A shared app (`scope: shared`)
         # carries one root `branch` and deploys as the one environment `shared` (studio-infrastructure
         # ADR-029).
         run: |
