@@ -53,6 +53,13 @@ jobs:
           # (a gateway that only runs the toolchain through npx), so only a lockfile asks for it.
           cache: ${{ hashFiles('package-lock.json') != '' && 'npm' || '' }}
 
+      # outside: Bun runs `node-gyp rebuild` for a native package that ships a binding.gyp
+      # (better-sqlite3), prebuilds or not; the x64 runner image carried node-gyp, the Arm one
+      # does not (2026-10-26). Only a Bun repository asks for it.
+      - name: Install node-gyp
+        if: hashFiles('bun.lock') != ''
+        run: npm install --global node-gyp@13.1.0
+
       - name: Restore build artifacts
         id: artifacts
         uses: jterrazz/studio-actions/actions/artifacts-cache@main
