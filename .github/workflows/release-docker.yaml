@@ -69,6 +69,9 @@ jobs:
       - name: Connect to infrastructure
         uses: jterrazz/studio-actions/actions/infra-connect@main
 
+      # invariant: a `v*` tag is a release, built and pushed as `:<tag>`; anything else (a push to main,
+      # the weekly schedule, a dispatch on main) is a push, built as `:latest`. Either way docker-deploy
+      # resolves the tag just pushed to its digest and deploys that.
       - name: Determine image tag
         id: image
         env:
@@ -77,10 +80,10 @@ jobs:
         run: |
           if [[ "$REF" == refs/tags/v* ]]; then
             echo "tag=$REF_NAME" >> "$GITHUB_OUTPUT"
-            echo "trigger=tag" >> "$GITHUB_OUTPUT"
+            echo "trigger=release" >> "$GITHUB_OUTPUT"
           else
             echo "tag=latest" >> "$GITHUB_OUTPUT"
-            echo "trigger=main" >> "$GITHUB_OUTPUT"
+            echo "trigger=push" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build and push image
@@ -96,45 +99,31 @@ jobs:
           MANIFEST: ${{ inputs.manifest }}
           TRIGGER: ${{ steps.image.outputs.trigger }}
           IMAGE_TAG: ${{ steps.image.outputs.tag }}
-          EVENT: ${{ github.event_name }}
-        # invariant: `branch` names what deploys an environment: `main` a push to main, `next` a
-        # version tag, anything else an image tag a dispatch pins. A schedule (the weekly rebuild
-        # that takes the base image's patches) runs on the default branch's HEAD, so it is a push
-        # to main here: it rebuilds `latest` and deploys the `main` environments, never `next`. A shared app (`scope: shared`)
-        # carries one root `branch` and deploys as the one environment `shared` (studio-infrastructure
-        # ADR-029).
+        # invariant: `deploy` names what deploys an environment: `push` every push to main, `release`
+        # a `v*` tag, with the image built for that tag. A schedule (the weekly rebuild that takes the
+        # base image's patches) runs on the default branch's HEAD, so it is a push here: it rebuilds
+        # `latest` and deploys the `push` environments, never a `release` one. A shared app
+        # (`scope: shared`) carries one root `deploy` and deploys as the one environment `shared`
+        # (studio-infrastructure ADR-029).
+        # hazard: an environment naming neither value fails the run, before anything deploys: a
+        # default would deploy where nobody asked, or leave an environment silently stale.
         run: |
+          set -euo pipefail
           SCOPE=$(yq '.scope // ""' "$MANIFEST")
           if [ "$SCOPE" = "shared" ]; then
-            ENVS_JSON=$(yq -o json '{"shared": {"branch": .branch}}' "$MANIFEST")
+            ENVS_JSON=$(yq -o json '{"shared": {"deploy": .deploy}}' "$MANIFEST")
           else
-            ENVS_JSON=$(yq -o json '.environments' "$MANIFEST" 2>/dev/null || echo "{}")
+            ENVS_JSON=$(yq -o json '.environments // {}' "$MANIFEST")
           fi
-          HAS_BRANCHES=$(echo "$ENVS_JSON" | jq '[to_entries[].value.branch // empty] | length')
-
-          if [ "$HAS_BRANCHES" = "0" ]; then
-            if [ "$TRIGGER" = "tag" ]; then
-              echo 'list=[{"env":"prod","image_tag":"'"$IMAGE_TAG"'"}]' >> "$GITHUB_OUTPUT"
-            else
-              echo 'list=[{"env":"staging","image_tag":"latest"}]' >> "$GITHUB_OUTPUT"
-            fi
-          else
-            if [ "$TRIGGER" = "tag" ]; then
-              DEPLOYMENTS=$(echo "$ENVS_JSON" | jq -c --arg t "$IMAGE_TAG" \
-                '[to_entries[] | select(.value.branch == "next") | {"env": .key, "image_tag": $t}]')
-            else
-              DEPLOYMENTS=$(echo "$ENVS_JSON" | jq -c \
-                '[to_entries[] | select(.value.branch == "main") | {"env": .key, "image_tag": "latest"}]')
-
-              if [ "$EVENT" = "workflow_dispatch" ]; then
-                PINNED=$(echo "$ENVS_JSON" | jq -c \
-                  '[to_entries[] | select(.value.branch != null and .value.branch != "main" and .value.branch != "next") | {"env": .key, "image_tag": .value.branch}]')
-                DEPLOYMENTS=$(echo "$DEPLOYMENTS $PINNED" | jq -c -s 'add')
-              fi
-            fi
-
-            echo "list=$DEPLOYMENTS" >> "$GITHUB_OUTPUT"
+          UNNAMED=$(echo "$ENVS_JSON" | jq -r \
+            '[to_entries[] | select(.value.deploy != "push" and .value.deploy != "release") | .key] | join(", ")')
+          if [ -n "$UNNAMED" ]; then
+            echo "::error file=$MANIFEST::$UNNAMED: each environment names \`deploy: push\` or \`deploy: release\`"
+            exit 1
           fi
+          DEPLOYMENTS=$(echo "$ENVS_JSON" | jq -c --arg when "$TRIGGER" --arg tag "$IMAGE_TAG" \
+            '[to_entries[] | select(.value.deploy == $when) | {"env": .key, "image_tag": $tag}]')
+          echo "list=$DEPLOYMENTS" >> "$GITHUB_OUTPUT"
 
       - name: Deploy
         uses: jterrazz/studio-actions/actions/docker-deploy@main

@@ -124,8 +124,9 @@ Renovate preset beside the workflows:
 [`renovate/apps.json`](../../renovate/apps.json) says what it moves and what
 it merges by itself.
 The app also owns `.infrastructure/application.yaml`, the manifest the app
-chart renders, with a `branch:` on every environment (`main` or `next`), or at
-the root of a `scope: shared` app. Its schema, and everything the cluster
+chart renders, with a `deploy:` on every environment (`push` or `release`), or
+at the root of a `scope: shared` app. Its caller triggers on `tags: ['v*']`
+only when an environment is `deploy: release`. Its schema, and everything the cluster
 promises in return, are `studio-infrastructure`'s
 [deploy contract](https://github.com/jterrazz/studio-infrastructure/blob/main/docs/reference/deploy-contract.md).
 

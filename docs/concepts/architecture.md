@@ -93,21 +93,21 @@ takes no secret: the calling job grants `id-token: write`, and every
 connection is made with that OIDC token ([secrets.md](../reference/secrets.md)).
 
 Which environments a run deploys is resolved from the manifest's
-`environments` block, each entry's `branch:`:
+`environments` block, each entry's `deploy:`:
 
-- **No environment declares a `branch:`**: a `v*` tag deploys `prod` with that
-  image tag; a push to `main` deploys `staging` with `latest`. This is the
-  legacy branch, and it is why the infrastructure side calls `branch:`
-  mandatory: without it a push silently leaves prod stale.
-- **Environments declare a `branch:`**: a `v*` tag deploys every environment
-  whose `branch:` is `next`, with the released tag; a push to `main` deploys
-  every environment whose `branch:` is `main`, with `latest`. A manual
-  `workflow_dispatch` additionally deploys the environments pinned to a literal
-  image tag, at that tag. A `schedule`, the weekly rebuild that takes the base
-  image's patches, runs on `main`'s HEAD and resolves like a push to `main`,
-  with mutation off: the push that brought that commit measured it already.
+- **`deploy: push`**: deployed by every push to `main`, with the `latest` it
+  just built. A `schedule`, the weekly rebuild that takes the base image's
+  patches, runs on `main`'s HEAD and resolves like a push, with mutation off:
+  the push that brought that commit measured it already.
+- **`deploy: release`**: deployed by a `v*` tag, with the image built and
+  pushed as that tag. A push never touches it, so an app ships to it with
+  `git tag vX.Y.Z && git push --tags` or `gh release create vX.Y.Z`; only such
+  an app's caller triggers on `tags: ['v*']`.
+- **Either way the image is deployed by digest**, resolved from the tag the run
+  just pushed. A `workflow_dispatch` resolves by the ref it is run on. An
+  environment naming neither value fails the run before anything deploys.
 - **A shared app** (`scope: shared`, an app every environment calls) has no
-  `environments`: its root `branch:` decides the same way, and it deploys as
+  `environments`: its root `deploy:` decides the same way, and it deploys as
   the one environment `shared`.
 
 A monorepo app points `dockerfile:` and `manifest:` into its own directory and
@@ -130,9 +130,10 @@ holding one `action.yaml`.
 
 **infra-connect.** One step for the three connections a deploy needs, with
 the job's GitHub OIDC token alone. It reads the registry account from
-Infisical project `studio-ci`, joins Tailscale through a trust credential,
-resolves the registry's CNAME over the tailnet and pins it in `/etc/hosts`
-(the runner's resolver sometimes never chases it), then logs in.
+Infisical project `studio-ci`, joins Tailscale through the trust credential
+for its ref (`main`, or a `v*` tag), resolves the registry's CNAME over the
+tailnet and pins it in `/etc/hosts` (the runner's resolver sometimes never
+chases it), then logs in.
 
 **cluster-connect.** Writes a kubeconfig whose user is an exec plugin minting
 the job's OIDC token on demand, so a long `--wait` never outlives a token, and
