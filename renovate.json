@@ -6,8 +6,8 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "The helm docker-deploy installs for every app deploy.",
-      "managerFilePatterns": ["/^actions/docker-deploy/action\\.yaml$/"],
+      "description": "The helm deploy-app installs for every app deploy.",
+      "managerFilePatterns": ["/^actions/deploy-app/action\\.yaml$/"],
       "matchStrings": ["version: \"(?<currentValue>v[0-9.]+)\""],
       "depNameTemplate": "helm/helm",
       "datasourceTemplate": "github-releases"

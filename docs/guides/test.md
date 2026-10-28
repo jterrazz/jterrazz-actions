@@ -1,47 +1,55 @@
 # Testing
 
-Almost nothing mechanical proves a change here: every one of the four
-workflows triggers only on `workflow_call`, so none of them runs on a push or a
-pull request to this repository's own `main`. The one gate that does run is
-`make lint`, which judges the prose, the comments, the names, the secrets and the shape of `docs/`, and never what a workflow does. Read that
-honestly rather than as a gap to explain away.
+A change is proven here, at its own commit, before `@main` hands it to every
+repository. `.github/workflows/self-test.yaml` (Self-test) runs on every
+push and pull request, and calls each action by its `./` path, so what runs
+is the change itself, not `main`'s copy.
 
-## What `make lint` proves
+## What Self-test proves
 
-`make lint` runs `typescript check` from `@jterrazz/typescript`, and
-`studio.config.ts` declares this repository `content`: it has no code of the
-toolchain's, so the check runs the seven passes that mean something there. The
-manual is cut into `start/`, `guides/`, `concepts/`, `reference/` and
-`decisions/`, the map links only its own pages, and the required pages exist;
-the Markdown is short-blocked and its links resolve; every comment in the
-workflows and actions states its kind; the names and the secrets are judged.
-It needs no `package.json` (`npx` fetches the toolchain, at the release the
-`Makefile` pins), and
-`.github/workflows/lint.yaml` runs it on every push and pull request. It does
-not parse the YAML as a workflow: GitHub does that, in the caller's run.
+| Job                              | Proves                                                                                                         |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Docs                             | `make lint`: the manual's layout, prose and links, every comment's kind, the names and the secrets             |
+| Scripts                          | actionlint over the workflows, shellcheck over `scripts/`, the unit tests, and `plan-deploy` on a fixture manifest |
+| Check · passing fixture          | `actions/check` on `tests/fixtures/projects/passing`: every pass recorded green, hadolint's warning as a note, mutation run |
+| Check · failing fixture          | the same action on a project whose lint fails: the report names Lint failed and the passes after it not run    |
+| Expect the failing fixture to fail | the failing fixture's Check step really failed, read from its outcome, while its job stays green            |
+| Scan · known-vulnerable image    | `scan-image` on an image holding lodash 4.17.11 (a critical with a fix): reporting warns and passes, enforcing fails |
 
-## What actually catches a mistake
+The unit tests (`node --test tests/*.test.mjs`, no dependency to install)
+cover the two scripts whose output is a decision:
 
-- **GitHub's own parser**, the moment a caller invokes the workflow: a
-  malformed `on:`, a typo'd input name or an `${{ }}` that does not resolve
-  fails that caller's job immediately, with GitHub's own message. That is the
-  earliest mechanical feedback there is, and it fires in the CALLER's run, not
-  this repository's.
-- **A real consumer's run, pointed at the branch.** Because a caller names a
-  ref in its `uses:` line (`@main`, a tag, a SHA), pointing one caller's
-  `uses:` at this change's branch instead of `@main` and pushing is the one
-  way to see the workflow execute before it reaches every other repository;
-  [wire-a-repository.md](wire-a-repository.md) names the two files a caller
-  carries. The pin is temporary: it moves back to `@main` once the run is
-  green, since callers otherwise pin the branch, not a tag.
-- **A human reading the diff** against the invariants two pages name:
-  [architecture](../concepts/architecture.md) for what each workflow and action
-  is meant to do, [develop.md](develop.md) for what a change owes
-  in step.
+- **The plan**, over the manifests in `tests/fixtures/manifests/`: a push, a
+  `v*` tag, the daily schedule (both builds, and one when `main` is the newest
+  tag), a tag with no release environment, a shared app, and an environment
+  naming neither `deploy` value.
+- **The summary**, over the reports in `tests/fixtures/reports/`: a deployed
+  run (title, commit line, environments, checks, image, release hint) and runs
+  blocked at Check and at Scan, plus the checks report the action writes.
+
+Run them on a laptop with `node --test tests/*.test.mjs`; `make lint` needs
+Node alone.
+
+## What Self-test cannot prove
+
+A shared workflow reaches its actions at `@main`, and a Deploy needs the
+tailnet, the registry and the cluster, which only a caller's identity is
+trusted with. So the jobs of `deploy-docker.yaml` are proven by their parts
+here, and as a whole by a real run:
+
+1. Land the action change with its Self-test green.
+2. Run one app's Deploy by hand, `gh workflow run deploy.yaml -R jterrazz/<app>`,
+   and read its summary; the job log holds the same Markdown under
+   "Summary (Markdown)".
+3. Then let the other apps' next pushes or the daily rebuild take it.
+
+A change to a shared workflow's own YAML (its jobs, needs, matrix or
+concurrency) is checked by actionlint here and executed only in a caller.
+Pointing one caller's `uses:` at a branch instead of `@main` runs the
+workflow before `main` has it, with its actions still at `@main`.
 
 ## The cost of being wrong
 
-Every caller references `@main`. A broken workflow lands on every
-repository's very next run. There is no version to pin back to and no
-release to hold, so the branch-pinned run above is the only rehearsal a
-change gets before every `@jterrazz` repository feels it at once.
+Every caller references `@main`. A broken shared workflow lands on every
+repository's next run at once, with no version to pin back to: revert the
+commit, and the next run of each caller is healed.

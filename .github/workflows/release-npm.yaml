@@ -1,5 +1,8 @@
 name: Release npm
 
+# hazard: the old name of publish-npm.yaml, kept only for package-typescript, which still calls it;
+# delete it once that caller moves to publish-npm.yaml (docs/guides/develop.md).
+
 on:
   workflow_call:
     inputs:
@@ -8,44 +11,62 @@ on:
         default: "24"
         type: string
       browsers:
-        description: Provision Playwright browsers before testing (forwarded to validate.yaml)
+        description: Provision Playwright chromium before Test, as the caller's Check does
         default: false
         type: boolean
 
 jobs:
-  validate:
-    name: Validate
-    uses: jterrazz/studio-actions/.github/workflows/validate.yaml@main
-    with:
-      node-version: ${{ inputs.node-version }}
-      browsers: ${{ inputs.browsers }}
-      mutation: false
+  # value: no mutation: the push or the pull request that brought this commit measured it.
+  check:
+    name: Check
+    runs-on: ubuntu-26.04-arm
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check
+        uses: jterrazz/studio-actions/actions/check@main
+        with:
+          node-version: ${{ inputs.node-version }}
+          browsers: ${{ inputs.browsers }}
+          mutation: false
 
   publish:
     name: Publish
-    needs: validate
+    needs: check
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 15
+    # invariant: npm's trusted publishing authenticates with this job's OIDC token, and provenance
+    # signs with it: no token is stored. npm trusts one workflow file per package, by name.
     permissions:
       contents: read
       id-token: write
+    env:
+      npm_config_audit: "false"
+      npm_config_fund: "false"
+      npm_config_update_notifier: "false"
     steps:
-      - name: Checkout
+      - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ inputs.node-version }}
           cache: npm
           registry-url: https://registry.npmjs.org
 
-      - name: Install and build
+      - name: Build
         run: make build
 
       - name: Publish to npm
-        # value: a publish takes seconds; when the registry degrades, npm holds
-        # the PUT open for 11-14 minutes before it fails, so the bound fails
-        # it early and leaves the rerun to whoever reads the outage.
+        # value: a publish takes seconds; when the registry degrades, npm holds the PUT open for
+        # 11-14 minutes before it fails, so the bound fails it early and leaves the rerun to
+        # whoever reads the outage.
         timeout-minutes: 4
-        run: npm publish --access public --provenance
+        run: |
+          set -euo pipefail
+          npm publish --access public --provenance
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          echo "## ✅ Published [\`$name@$version\`](https://www.npmjs.com/package/$name/v/$version)" >> "$GITHUB_STEP_SUMMARY"

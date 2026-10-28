@@ -1,173 +1,58 @@
 name: Validate
 
+# hazard: the old name of check.yaml, kept only for package-typescript, which still calls it; delete
+# it once that caller moves to check.yaml (docs/guides/develop.md).
+
 on:
   workflow_call:
     inputs:
       node-version:
-        description: Node.js version to install (leave empty to skip)
+        description: Node.js version to install (empty skips it)
         default: "24"
         type: string
+      go-version:
+        description: Go version to install (empty skips it)
+        default: ""
+        type: string
       browsers:
-        description: Provision Playwright browsers before testing (chromium, cached by lockfile version)
+        description: Provision Playwright chromium before Test, cached by the version the lockfile names
         default: false
         type: boolean
       mutation:
-        description: Run the Makefile's `mutation` target after Test (release-npm passes false; release-docker forwards its caller's)
+        description: Run the Makefile's `mutation` target after Test
         default: true
         type: boolean
+      dockerfile:
+        description: The Dockerfile hadolint reads when it exists
+        default: "Dockerfile"
+        type: string
 
-# invariant: only a pull request, or a push to a branch other than the default,
-# shares a group a newer run cancels: its successor gates the same base, or a
-# branch nothing deploys. A push to the default branch hands mutation the range
-# since the commit before it, which no later run measures again, and a release
-# (`mutation: false`, a tag, a release event) must finish, so none of those is
-# ever cancelled. They queue instead, in a group of their commit: a release's
-# validate starts once the push's validate of the same commit has finished,
-# and restores the verdict it saved rather than proving the tree again.
-# GitHub keeps one pending run per group, which holds while a commit has at
-# most two such runs (its push and its release). The `validate-` prefix keeps
-# the group apart from any group the caller's workflow holds, which would
-# deadlock.
+# invariant: a newer run cancels the one it makes useless, and only that one: a pull request's,
+# whose next run gates the same base, or a push to a branch other than the default. A push to the
+# default branch hands mutation the range since the commit before it, which no later run measures
+# again, so it is never cancelled: it queues in a group of its own commit. The `check-` prefix
+# keeps the group apart from any group the caller's workflow holds, which would deadlock.
 concurrency:
-  group: validate-${{ (inputs.mutation && (github.event_name == 'pull_request' || (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/') && github.ref_name != github.event.repository.default_branch))) && format('{0}-{1}', github.workflow, github.ref) || github.sha }}
-  cancel-in-progress: ${{ inputs.mutation && (github.event_name == 'pull_request' || (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/') && github.ref_name != github.event.repository.default_branch)) }}
+  group: validate-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_name != github.event.repository.default_branch)) && format('{0}-{1}', github.workflow, github.ref) || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_name != github.event.repository.default_branch) }}
 
 jobs:
-  validate:
-    name: Validate
+  check:
+    name: Check
     runs-on: ubuntu-26.04-arm
     steps:
-      - name: Checkout
+      - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # invariant: the mutation step diffs the tree against the commit the push or
-          # the pull request started from.
-          fetch-depth: 0
+          # value: the whole history only for mutation, which diffs against the commit the push or
+          # the pull request started from; every other run needs the one commit.
+          fetch-depth: ${{ inputs.mutation && (github.event_name == 'push' || github.event_name == 'pull_request') && '0' || '1' }}
 
-      - name: Setup Node.js
-        if: inputs.node-version != ''
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - name: Check
+        uses: jterrazz/studio-actions/actions/check@main
         with:
           node-version: ${{ inputs.node-version }}
-          # outside: setup-node's npm cache fails a repository with no package-lock.json
-          # (a gateway that only runs the toolchain through npx), so only a lockfile asks for it.
-          cache: ${{ hashFiles('package-lock.json') != '' && 'npm' || '' }}
-
-      # outside: Bun runs `node-gyp rebuild` for a native package that ships a binding.gyp
-      # (better-sqlite3), prebuilds or not; the x64 runner image carried node-gyp, the Arm one
-      # does not (2026-10-26). Only a Bun repository asks for it.
-      - name: Install node-gyp
-        if: hashFiles('bun.lock') != ''
-        run: npm install --global node-gyp@13.1.0
-
-      - name: Restore build artifacts
-        id: artifacts
-        uses: jterrazz/studio-actions/actions/artifacts-cache@main
-        with:
-          phase: restore
-
-      - name: Build
-        run: make build
-
-      - name: Resolve Playwright version
-        if: inputs.browsers
-        id: playwright
-        # invariant: a caller's toolchain decides which lockfile exists, so try each in
-        # turn rather than assuming npm, so bun and pnpm repos cache the
-        # right browser build instead of silently skipping the cache.
-        run: |
-          version=""
-          if [ -f package-lock.json ]; then
-            version=$(node -p "require('./package-lock.json').packages['node_modules/playwright']?.version || ''")
-          fi
-          if [ -z "$version" ] && [ -f bun.lock ]; then
-            version=$(grep -oE '"playwright@[^"]+"' bun.lock | head -1 | sed -E 's/"playwright@([^"]+)"/\1/')
-          fi
-          if [ -z "$version" ] && [ -f pnpm-lock.yaml ]; then
-            version=$(grep -oE '/?playwright@[0-9][^:[:space:]]*' pnpm-lock.yaml | head -1 | sed -E 's#.*playwright@##')
-          fi
-          if [ -z "$version" ]; then
-            echo "::error::browsers: true but no lockfile (package-lock.json, bun.lock, pnpm-lock.yaml) names a playwright version" >&2
-            exit 1
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Playwright browsers
-        if: inputs.browsers
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
-
-      - name: Install Playwright browsers
-        if: inputs.browsers
-        run: npx playwright install chromium
-
-      - name: Install Playwright system dependencies
-        if: inputs.browsers
-        # outside: a fresh runner lacks some of chromium's packages (xvfb, fonts, nss),
-        # so apt runs every time, and an apt mirror sometimes stalls for 5-10
-        # minutes mid-download. Each attempt is bounded at 2 minutes and
-        # retried against a fresh connection. It runs as root so that
-        # `timeout` kills apt along with npx, rather than a sudo child it
-        # cannot reach; a kill during unpacking is finished by
-        # `dpkg --configure -a` before the next attempt.
-        run: |
-          for attempt in 1 2 3; do
-            if sudo env "PATH=$PATH" timeout -k 10 120 npx playwright install-deps chromium; then
-              exit 0
-            fi
-            echo "::warning::Playwright system dependencies, attempt $attempt of 3, failed or stalled past 2 minutes"
-            sudo dpkg --configure -a
-          done
-          exit 1
-
-      - name: Lint
-        run: make lint
-
-      - name: Test
-        run: make test
-
-      - name: Resolve the mutation range
-        if: inputs.mutation
-        id: since
-        uses: jterrazz/studio-actions/actions/mutation-since@main
-
-      - name: Mutation
-        # invariant: only a Makefile with a `mutation` target runs it, and only when the
-        # caller leaves `mutation` on. The toolchain runs the same way as on
-        # any machine: it reuses what the report in the restored .artifacts/
-        # still proves, and a run that restores no report runs cold by
-        # itself. release-npm turns it off, since the push or the pull
-        # request that brought its commit gated it already; release-docker
-        # turns it off unless its caller asks, as a Docker app whose push to
-        # main is its release does.
-        # The whole suite measures the lines this push or pull request
-        # changed, since the commit mutation-since resolves.
-        # A change that touches only Markdown or the manual (the root docs/)
-        # gives mutation nothing to measure, so it skips; an event with no
-        # commit to diff from (a schedule, a dispatch, a release) always runs.
-        if: inputs.mutation
-        env:
-          SINCE: ${{ steps.since.outputs.since }}
-        run: |
-          if grep -q '^mutation:' Makefile; then
-            if [ -n "$SINCE" ]; then
-              changed=$(git diff --name-only "$SINCE" HEAD)
-            fi
-            if [ -n "$SINCE" ] && ! grep -qvE '\.md$|^docs/' <<< "$changed"; then
-              echo "The change since $SINCE touches only Markdown and docs/: mutation has nothing to measure."
-              exit 0
-            fi
-            TYPESCRIPT_MUTATION_SINCE="$SINCE" make mutation
-          fi
-
-      - name: Save build artifacts
-        # value: always(): a red run still compiled and still wrote a tsc
-        # buildinfo, and the retry that follows is exactly when the warm
-        # tree is worth most.
-        if: always()
-        uses: jterrazz/studio-actions/actions/artifacts-cache@main
-        with:
-          phase: save
-          key: ${{ steps.artifacts.outputs.key }}
+          go-version: ${{ inputs.go-version }}
+          browsers: ${{ inputs.browsers }}
+          mutation: ${{ inputs.mutation }}
+          dockerfile: ${{ inputs.dockerfile }}

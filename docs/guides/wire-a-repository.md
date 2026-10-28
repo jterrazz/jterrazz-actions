@@ -1,147 +1,137 @@
 # Wiring a repository
 
-A consuming repository carries a `Makefile` and two workflow files, and
-inherits the whole build, test and release pipeline from here. Change the
-pipeline once, every repository gets it.
+A repository carries a `Makefile` and one small file per family it uses, and
+inherits the whole pipeline from here: a change made once reaches every
+repository.
 
-Four rules hold everywhere:
+Five rules hold everywhere:
 
 - The `Makefile` exposes `build`, `lint` and `test`, whatever the toolchain.
-  A `mutation` target, where it has one, runs after them in the same job,
-  on a push or a pull request; an npm release skips it, and a Docker release
-  runs it when its caller passes `mutation: true`.
-- Node.js 24, except where a workflow's own default says otherwise.
-- An npm release caller is named `release.yaml`, because npm provenance is
-  configured against that filename. Never skip validation: every release
-  workflow runs it first.
-- No secret is stored: a releasing job grants
+  A `mutation` target, where there is one, runs after them. A
+  `node_modules/.install` (or `node_modules`) target, where there is one, is
+  how the check installs.
+- Node.js 24 unless the caller says otherwise; `node-version: ''` skips it.
+- No secret is stored: a deploying or publishing job grants
   `permissions: { contents: read, id-token: write }`, and every service takes
   that OIDC token ([secrets](../reference/secrets.md)).
-- Build and tool state goes under `.artifacts/<tool>/`, gitignored. That is
-  the whole opt-in to CI caching; see below.
+- Build and tool state goes under `.artifacts/<tool>/`, gitignored: that is
+  the whole opt-in to the CI cache ([the cache](../concepts/artifacts-cache.md)).
+- The files and jobs are named as [Naming](../reference/naming.md) says.
 
-## Caching your build
-
-CI restores and saves `.artifacts/` around the three gates
-([the cache](../concepts/artifacts-cache.md)). A repository benefits by writing its
-tool state there and nowhere else:
-
-| Tool       | Where to point it                                                   |
-| ---------- | --------------------------------------------------------------------- |
-| tsc        | `tsBuildInfoFile: ".artifacts/tsc/tsconfig.tsbuildinfo"`             |
-| vitest     | `cacheDir: '.artifacts/vitest'`                                      |
-| knip       | `"cacheLocation": ".artifacts/knip"`                                 |
-| Next.js    | `distDir: '.artifacts/next'`                                         |
-| cargo      | `CARGO_TARGET_DIR=.artifacts/cargo`                                  |
-| playwright | `outputDir: '.artifacts/playwright'`                                 |
-
-`dist/` is not one of them: it stays where it is, and CI never caches it:
-a release ships what the commit says. Add `.artifacts/` to `.gitignore`;
-nothing under it is a source. A repository that opts out keeps cold runs and
-the workflow does not notice.
-
-## npm package
+## A library or a tool
 
 ```yaml
-# .github/workflows/validate.yaml
-name: Validate
+# .github/workflows/check.yaml
+name: Check
+
 on:
-  push: { branches: [main] }
-  pull_request: { branches: [main] }
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+
 jobs:
-  validate:
-    uses: jterrazz/studio-actions/.github/workflows/validate.yaml@main
-    with: { node-version: "24" }
-    # browsers: true provisions Playwright chromium for specification.website() suites
+    check:
+        name: Check
+        uses: jterrazz/studio-actions/.github/workflows/check.yaml@main
+        # with: { browsers: true } provisions chromium for specification.website() suites
 ```
+
+An npm package adds its Publish, which a GitHub Release starts. It passes
+the same inputs its Check passes, so the publish gate runs the suite the push
+gate ran:
 
 ```yaml
-# .github/workflows/release.yaml
-name: Release
+# .github/workflows/publish.yaml
+name: Publish
+run-name: Publish ${{ github.event.release.tag_name }}
+
 on:
-  release: { types: [created] }
-permissions: { contents: read, id-token: write }
+    release:
+        types: [created]
+
 jobs:
-  release:
-    uses: jterrazz/studio-actions/.github/workflows/release-npm.yaml@main
-    with: { node-version: "24" }
-    secrets: inherit
+    publish:
+        name: Publish
+        permissions:
+            contents: read
+            id-token: write
+        uses: jterrazz/studio-actions/.github/workflows/publish-npm.yaml@main
 ```
 
-## Docker app deployed to the cluster
+npm's trusted publisher, configured once on npmjs.com, names this file. A Go
+tool's Publish runs on `push: { tags: ['v*'] }` with `contents: write` and
+calls `publish-go.yaml` with `binary-name` and `build-path`.
 
-The validate caller runs on pull requests only: a push to `main` is the
-release, and the release validates it once, mutation included, through
-`mutation: true`.
+## A Docker app deployed to the cluster
+
+Check runs on pull requests only: a push to `main` is the release, and
+Deploy checks that commit beside the build.
 
 ```yaml
-# .github/workflows/validate.yaml
-name: Validate
+# .github/workflows/deploy.yaml
+name: Deploy
+run-name: Deploy ${{ github.ref_name }} · ${{ github.event_name == 'schedule' && 'daily rebuild' || github.event_name == 'workflow_dispatch' && format('manual run by {0}', github.triggering_actor) || format('push by {0}', github.triggering_actor) }}
+
 on:
-  pull_request: { branches: [main] }
+    push:
+        branches: [main]
+        tags: ['v*'] # only when an environment is `deploy: release`
+    # value: the daily rebuild, so an untouched app still takes its base image's patches.
+    schedule:
+        - cron: '0 4 * * *'
+    workflow_dispatch:
+
 jobs:
-  validate:
-    uses: jterrazz/studio-actions/.github/workflows/validate.yaml@main
-    with: { node-version: "24" }
+    deploy:
+        name: Deploy
+        permissions:
+            contents: read
+            id-token: write
+        uses: jterrazz/studio-actions/.github/workflows/deploy-docker.yaml@main
+        with:
+            image-name: my-app
 ```
 
-```yaml
-# .github/workflows/build-and-deploy.yaml
-name: Build and Deploy
-on:
-  push:
-    branches: [main]
-    tags: ["v*"]
-  # The daily rebuild: an untouched app still takes its base image's patches.
-  schedule: [{ cron: "0 4 * * *" }]
-  workflow_dispatch:
+`image-name` must equal the manifest's `metadata.name`, or the deploy
+refuses. The app owns `.infrastructure/application.yaml`, with a `deploy:`
+(`push` or `release`) on every environment, or at the root of a
+`scope: shared` app; its schema is `studio-infrastructure`'s
+[deploy contract](https://github.com/jterrazz/studio-infrastructure/blob/main/docs/reference/deploy-contract.md).
+Each route's `smoke` block there is what Verify probes after a rollout.
 
-concurrency:
-  group: deploy-${{ github.ref }}
-  cancel-in-progress: false
-jobs:
-  build-and-deploy:
-    permissions: { contents: read, id-token: write }
-    uses: jterrazz/studio-actions/.github/workflows/release-docker.yaml@main
-    with:
-      image-name: my-app
-      node-version: "24"
-      mutation: true
-```
-
-`image-name` must equal the manifest's `metadata.name`, or the deploy refuses.
-The `schedule:` rebuilds `main` daily, so a floating base tag (`node:24-alpine`)
-takes its patches though no commit lands, within a day of their release, and
-every image is scanned again against that day's vulnerability database; an exact one moves through the
-Renovate preset beside the workflows:
+Stagger the schedule's minute across apps. The daily rebuild takes a
+floating base tag's patches (`node:24-alpine`) within a day; an exact one
+moves through the Renovate preset beside the workflows:
 
 ```json
 {
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["github>jterrazz/studio-actions//renovate/apps"]
+    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+    "extends": ["github>jterrazz/studio-actions//renovate/apps"]
 }
 ```
 
 [`renovate/apps.json`](../../renovate/apps.json) says what it moves and what
 it merges by itself.
-The app also owns `.infrastructure/application.yaml`, the manifest the app
-chart renders, with a `deploy:` on every environment (`push` or `release`), or
-at the root of a `scope: shared` app. Its caller triggers on `tags: ['v*']`
-only when an environment is `deploy: release`. Its schema, and everything the cluster
-promises in return, are `studio-infrastructure`'s
-[deploy contract](https://github.com/jterrazz/studio-infrastructure/blob/main/docs/reference/deploy-contract.md).
 
-## Go tool
+## A probe of its own
 
-```yaml
-# .github/workflows/release.yaml
-name: Release
-on:
-  push:
-    tags: ["v*"]
-permissions: { contents: write }
-jobs:
-  release:
-    uses: jterrazz/studio-actions/.github/workflows/release-go.yaml@main
-    with: { binary-name: workstation, build-path: ./src/cmd/workstation }
-```
+A scheduled probe (an upstream drift, a platform contract) is `watch.yaml`,
+named Watch, one job per probe. It is the repository's own: no shared
+workflow serves it.
+
+## Caching the build
+
+CI restores and saves `.artifacts/` around the check. A repository benefits
+by writing its tool state there and nowhere else:
+
+| Tool       | Where to point it                                        |
+| ---------- | -------------------------------------------------------- |
+| tsc        | `tsBuildInfoFile: ".artifacts/tsc/tsconfig.tsbuildinfo"` |
+| vitest     | `cacheDir: '.artifacts/vitest'`                          |
+| knip       | `"cacheLocation": ".artifacts/knip"`                     |
+| Next.js    | `distDir: '.artifacts/next'`                             |
+| cargo      | `CARGO_TARGET_DIR=.artifacts/cargo`                      |
+| playwright | `outputDir: '.artifacts/playwright'`                     |
+
+`dist/` stays out: a release ships what the commit says.

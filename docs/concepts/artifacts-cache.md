@@ -7,9 +7,10 @@ The three gates run against a restored `.artifacts/`, the single root every
 for the incremental buildinfo, then `vitest/`, `knip/`, `next/`, `cargo/`,
 `playwright/`. One entry warms every toolchain in the repo at once, so a
 compile survives between runs instead of starting cold on every push.
-[`actions/artifacts-cache`](../../actions/artifacts-cache) restores it before
-the gates and saves it after them, in `validate.yaml` and `release-go.yaml`
-alike.
+[`actions/check`](../../actions/check) restores it before the gates and saves
+it after them, wherever a check runs; a repository whose check is its own
+calls [`actions/cache-artifacts`](../../actions/cache-artifacts) for the same
+cache.
 
 A consumer does nothing to benefit but point its tools there, as
 [wire-a-repository.md](../guides/wire-a-repository.md). A repository that writes nothing
@@ -21,7 +22,7 @@ must ship what the commit says and not what a cache remembers. So does
 `node_modules/`, which is the package manager's concern and is already
 handled by `setup-node`'s `cache: npm`.
 
-Every run saves under `artifacts-<os>-<lockfile hash>-<ref name>-<run id>`,
+Every run saves under `artifacts-<os>-<arch>-<lockfile hash>-<ref name>-<run id>`,
 the hash covering the lockfile of every toolchain the estate uses
 (`package-lock.json`, `bun.lock`, `pnpm-lock.yaml`, `go.sum`, `Cargo.lock`).
 A cache key is immutable once written, and a buildinfo changes with every
@@ -30,7 +31,7 @@ than freezing at a branch's first green.
 
 Restoring is therefore all prefix match, in three widening steps: the same
 branch's most recent run, then the same lockfile on any branch, then the OS
-alone. That is how a fresh branch, and a `v*` tag, start from the tree `main`
+and architecture alone. That is how a fresh branch, and a `v*` tag, start from the tree `main`
 last left.
 
 Restore and save are separate steps so the save can run on `always()`: a red

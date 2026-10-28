@@ -1,44 +1,44 @@
 # studio-actions
 
-Shared CI and CD for the `@jterrazz` ecosystem: reusable GitHub Actions
-workflows and composite actions that every project calls to validate and
-release.
+Shared CI and CD for the `@jterrazz` ecosystem: the reusable GitHub Actions
+workflows every repository calls to check, deploy and publish, and the
+composite actions they are built from.
 
 ## Why
 
 Every repository would otherwise copy the same pipeline and drift from it. A
-repository here carries two workflow files and a `Makefile` exposing `build`,
-`lint` and `test`, and inherits the whole pipeline; change it once, every
-repository gets it.
+repository here carries a `Makefile` exposing `build`, `lint` and `test`, and
+one small file per family it uses: Check, Deploy, Publish, Watch. Change the
+pipeline once, every repository gets it, on its next run.
 
-It inherits a warm build with it: CI caches `.artifacts/`, the one root the
-ecosystem keeps build and tool state under, and a repository that writes there
-compiles incrementally between runs, with no other opt-in.
+A Deploy reads as one answer: Plan, Check beside Build, Scan, Deploy and
+Verify per environment, then a summary saying what deployed where, at which
+digest, whether it answers, and what the checks and the image scan found.
 
 ## Thirty seconds
 
 ```yaml
-# .github/workflows/validate.yaml
-name: Validate
+# .github/workflows/check.yaml
+name: Check
 on:
-  push: { branches: [main] }
-  pull_request: { branches: [main] }
+    push: { branches: [main] }
+    pull_request: { branches: [main] }
 jobs:
-  validate:
-    uses: jterrazz/studio-actions/.github/workflows/validate.yaml@main
-    with: { node-version: "24" }
+    check:
+        name: Check
+        uses: jterrazz/studio-actions/.github/workflows/check.yaml@main
 ```
 
-That runs `make build`, `make lint` and `make test` on every push and pull
-request. Releases are one more file each: npm, Docker to the cluster, and
-Go.
+That installs, then runs `make build`, `make lint` and `make test` (and
+`make mutation` over the change) on every push and pull request.
 
 ## Documentation
 
-[docs/README.md](docs/README.md) is the map of the corpus. Start at
-[wire-a-repository](docs/guides/wire-a-repository.md) to set a repository up,
-[architecture](docs/concepts/architecture.md) for what each workflow does, and
-[secrets](docs/reference/secrets.md) for what it needs to be given.
+[docs/README.md](docs/README.md) is the map. Start at
+[wire-a-repository](docs/guides/wire-a-repository.md) to set a repository
+up, [architecture](docs/concepts/architecture.md) for what each workflow and
+action does, and [test](docs/guides/test.md) for how a change is proven
+before it reaches `@main`.
 
-The cluster these workflows deploy to is
+The cluster a Deploy deploys to is
 [jterrazz/studio-infrastructure](https://github.com/jterrazz/studio-infrastructure).

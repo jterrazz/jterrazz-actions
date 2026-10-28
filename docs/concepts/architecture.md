@@ -1,234 +1,196 @@
 # Architecture
 
-The shape of this repository is its catalogue: four reusable workflows in
-`.github/workflows/`, called by every `@jterrazz` repository, and the
-composite actions in `actions/` they are built from: five for
-`release-docker.yaml` (`cluster-connect` reached through `docker-deploy`), `mutation-since` for `validate.yaml`, and
-`artifacts-cache`, which `validate.yaml` and `release-go.yaml` share. One workflow
-validates; three release, and each of them validates first.
+This repository is a catalogue: reusable workflows in `.github/workflows/`,
+which every `@jterrazz` repository calls, and the composite actions in
+`actions/` they are built from. A workflow is named after the intent of its
+run, never after the tool it calls; an action is named verb-object, after
+what it does. [Naming](../reference/naming.md) holds the rules.
 
-| Workflow              | Purpose                                                                                     | Trigger in the caller                       |
-| --------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| `validate.yaml`       | `make build` + `make lint` + `make test` (+ `make mutation`)                                | push / PR to `main`                         |
-| `release-docker.yaml` | Validate (mutation if asked), Docker build, Helm deploy to the cluster, then prune old tags | push to `main`, `v*` tags, a daily schedule |
-| `release-npm.yaml`    | Validate (no mutation), then `npm publish` with OIDC provenance                             | GitHub Release                              |
-| `release-go.yaml`     | Cross-compile Go binaries into a GitHub Release                                             | `v*` tags                                   |
+## Four families
 
-## validate.yaml
+Every workflow a repository carries belongs to one of four families, the
+same name in every repository.
 
-Runs `make build`, `make lint`, `make test` in that order: the universal CI
-interface, which is all a repo has to expose whatever its toolchain. A
-`Makefile` that also has a `mutation` target runs it last: for an
-`@jterrazz/typescript` project, `typescript mutation`, which fails on any
-mutant a test runs and none detects: the module tests over the sources they
-test, and the whole suite over the lines the push or the pull request
-changed that no module test runs.
+| Family  | Caller file   | Runs on                                           | Shared workflow                                        |
+| ------- | ------------- | ------------------------------------------------- | ------------------------------------------------------ |
+| Check   | `check.yaml`  | a pull request; a push to `main` for a library    | `check.yaml`                                           |
+| Deploy  | `deploy.yaml` | a push to `main`, a `v*` tag, the daily rebuild   | `deploy-docker.yaml`                                   |
+| Publish | `publish.yaml`| a GitHub Release (npm) or a `v*` tag (Go)         | `publish-npm.yaml`, `publish-go.yaml`                  |
+| Watch   | `watch.yaml`  | a schedule                                        | none: a probe is the repository's own                  |
 
-### The mutation range
+A Docker app has no Check on a push to `main`: its push is its release, and
+Deploy checks that commit while it builds the image. A library's push to
+`main` is checked by Check, and its Publish checks again.
 
-The step hands it that range, which
-[`actions/mutation-since`](../../actions/mutation-since) resolves, as
-`TYPESCRIPT_MUTATION_SINCE` (the pull request's base, else the commit the
-push started from), which is why validate checks out the whole history. The
-toolchain refuses a commit the clone does not hold, so when the push
-started from one it cannot reach (a force-push dropped it, or the zero
-commit of a branch's first push), the step measures from the fork point
-with the default branch, or else the parent commit, and says which; an
-event that carries neither (a schedule, a manual run) leaves the variable
-blank, and the working tree is measured against `HEAD`.
+## The Check
 
-A change that touches only Markdown, or only the manual under the root
-`docs/`, gives mutation nothing to measure, so the step reads the diff over
-that same range and skips, saying so. An event with no commit to diff from
-always runs it.
+`actions/check` is the whole check, in one composite action, so that every
+family runs the same one and no reusable workflow calls another. In order:
+it installs the dependencies, then runs `make build`, `make lint`,
+hadolint over the Dockerfile when there is one, `make test`, and
+`make mutation` over the change. The `Makefile` is the whole contract on the
+caller's side ([wiring a repository](../guides/wire-a-repository.md)).
 
-Under CI the toolchain runs mutation cold: it reads no report the restored
-`.artifacts/` carries, so every run re-measures every mutant the module tests
-reach, and a large package's run takes hours. That is why a release skips it:
-`release-npm.yaml` calls validate with `mutation: false`, since the push or
-the pull request that brought the commit gated it already, and
-`release-docker.yaml` forwards its own `mutation` input, `false` by default,
-and off on a schedule. A
-Docker app whose push to `main` is its release passes `mutation: true`, so
-that push is validated once, mutation included, instead of by a validate
-caller and then again by the release.
+Each option is an input, decided inside the action, so the job lists only
+what ran: no skipped Playwright or mutation steps. Each pass is recorded
+with its outcome and duration, and a pass the toolchain proved from its
+cache ("nothing ran") is recorded as cached. Those records become the checks
+table, written to the job's summary in a Check run and handed to the Summary
+job in a Deploy run.
 
-### Which run a newer one cancels
+| Input          | Default        | Effect                                                                                     |
+| -------------- | -------------- | ------------------------------------------------------------------------------------------ |
+| `node-version` | `24`           | Sets Node up with an npm cache; an empty string skips it                                   |
+| `go-version`   | empty          | Sets Go up                                                                                 |
+| `browsers`     | `false`        | Provisions Playwright chromium, cached by the version the lockfile names                   |
+| `mutation`     | `true`         | Runs the `mutation` target, where the Makefile has one, over the change the event carries  |
+| `dockerfile`   | `Dockerfile`   | The file hadolint reads, when it exists; warnings only for now                             |
 
-A newer run cancels the one it makes useless, and only that one: validate
-holds a concurrency group per caller workflow and ref for a pull request,
-whose next run gates the same base, and for a push to a branch other than
-the default. A push to the default branch is never cancelled, since its
-mutation range (the commit before it to this one) is measured by no later
-run, and neither is a release (`mutation: false`, a tag, a release event).
+**Install** is its own pass. A Makefile that installs through a stamp
+(`node_modules/.install`, or a `node_modules` target) installs by that
+rule, so the later `make build` finds the stamp fresh and never installs
+twice; any other project installs from its lockfile (`npm ci`,
+`bun install --frozen-lockfile`). npm's audit and funding notes are silenced
+for the whole job: the image scan and Renovate's security lane own that.
 
-Those queue in a group of their commit's SHA instead, so a release's validate
-waits for the push's validate of the same commit and then restores the
-verdict it saved ([artifacts-cache.md](artifacts-cache.md)) instead of
-proving the tree a second time. GitHub keeps one pending run per group and
-cancels an older pending one, which is safe while a commit has at most two
-such runs, its push and its release.
+**Mutation** measures the lines a push or a pull request changed, since the
+commit the event started from, which is why the caller checks the whole
+history out only when mutation runs. A change to Markdown or the root
+`docs/` alone gives it nothing to measure, so it is recorded off with why.
+A release, a schedule and a Deploy (unless the app asks with
+`mutation: true`) leave it off: the push that brought the commit measured it.
 
-The group name opens with `validate-` so it never equals a group the
-caller's own workflow holds, which GitHub resolves by cancelling one of the
-two.
+**Concurrency.** A newer Check cancels a pull request's older run, or a
+branch push's. A push to `main` is never cancelled: its mutation range is
+measured by no later run, so it queues in a group of its own commit.
 
-### Inputs
+## The Deploy
 
-| Input          | Default | Effect                                                                                                                                                                                                                                                                                                                                                              |
-| -------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `node-version` | `'24'`  | Installs Node with an npm cache. An explicit empty string skips the setup entirely; a caller that passes a version keeps it.                                                                                                                                                                                                                                        |
-| `browsers`     | `false` | Provisions Playwright chromium before Test, cached by the version read from whichever lockfile the caller has: `package-lock.json`, `bun.lock`, or `pnpm-lock.yaml`, tried in that order, then its system packages, each attempt bounded at 2 minutes and retried up to 3 times. For suites that render pages through `specification.website()` (`@jterrazz/test`). |
-| `mutation`     | `true`  | Runs the `Makefile`'s `mutation` target after Test, where it has one. `release-npm.yaml` passes `false`; `release-docker.yaml` forwards its own.                                                                                                                                                                                                                    |
+`deploy-docker.yaml` builds an app's image and deploys it to the cluster
+[jterrazz/studio-infrastructure](https://github.com/jterrazz/studio-infrastructure)
+runs, through the shared app chart.
 
-The `.artifacts/` cache the three gates run against is its own concept: [artifacts-cache.md](artifacts-cache.md).
+```text
+Plan ─┬─ Check ──────────────────────┐
+      └─ Build · sha-<7> ─ Scan ──────┴─ Deploy · <env> ─ Verify · <env> ─ Summary
+```
 
-## release-docker.yaml
+- **Plan** reads the app's manifest (`.infrastructure/application.yaml`):
+  each environment names `deploy: push` (every push to `main`) or
+  `deploy: release` (a `v*` tag). The daily schedule rebuilds both: `main`'s
+  HEAD for the `push` environments and the newest `v*` tag for the `release`
+  ones, so a release environment takes its base image's patches though nobody
+  tags. A shared app (`scope: shared`) deploys as the one environment
+  `shared`. An environment naming neither value fails the run here.
+- **Check** runs `actions/check` beside the build: the image builds while the
+  tests run, and deploys only if both pass.
+- **Build** pushes the image as `sha-<7>`, the commit it was built from, with
+  its OCI labels, and records its digest, size and base.
+- **Scan** reads that image with Trivy before anything deploys it.
+- **Deploy · \<env\>** rolls it out with `helm upgrade --install`, by digest,
+  one job per environment.
+- **Verify · \<env\>** waits for the rollout, then probes every route as its
+  `studio.jterrazz.com/smoke-*` annotations say. Only then does the alias
+  (`latest`, or the `v*` tag) move onto the digest, so an image that failed
+  its scan, rollout or probes is never `latest`. Old tags are pruned last.
+- **Summary** renders the run's one answer, on success and on failure alike.
 
-Validates, builds and pushes the image, deploys it with Helm, then prunes old
-tags. Its inputs beyond `image-name` (required) are `node-version`, `browsers`,
-`mutation` (default `false`, forwarded to validate), `timeout` (default `5m`, cert-manager headroom on a first deploy),
-`manifest` (default `.infrastructure/application.yaml`) and `dockerfile`. It
-takes no secret: the calling job grants `id-token: write`, and every
-connection is made with that OIDC token ([secrets.md](../reference/secrets.md)).
+**Concurrency.** Deploys queue per app and environment and are never
+cancelled; GitHub keeps the newest pending one, so a run waiting behind a
+deploy gives way to a newer commit. A Verify that finds its namespace already
+running a newer digest reports itself superseded and moves no alias.
 
-A `Plan` job reads the manifest's `environments` block, each entry's
-`deploy:`, and lists the builds the run makes; `Release <tag>` then runs once
-per build, in parallel:
+| Input        | Default                            | Effect                                                         |
+| ------------ | ---------------------------------- | -------------------------------------------------------------- |
+| `image-name` | required                           | The image, the release and the manifest's `metadata.name`      |
+| `manifest`   | `.infrastructure/application.yaml` | The app's manifest                                             |
+| `dockerfile` | `Dockerfile`                       | Built with the repository root as context                      |
+| `timeout`    | `5m`                               | Helm's wait, headroom for cert-manager on a first deploy       |
+| `mutation`   | `false`                            | Mutation in Check, for an app whose push to `main` is its release |
+| `node-version`, `browsers` | `24`, `false`        | Passed to Check                                                |
 
-- **`deploy: push`**: deployed by every push to `main`, with the `latest` it
-  just built. A `schedule`, the daily rebuild that takes the base image's
-  patches, runs on `main`'s HEAD and resolves like a push, with mutation off:
-  the push that brought that commit measured it already.
-- **`deploy: release`**: deployed by a `v*` tag, with the image built and
-  pushed as that tag. A push never touches it, so an app ships to it with
-  `git tag vX.Y.Z && git push --tags` or `gh release create vX.Y.Z`; only such
-  an app's caller triggers on `tags: ['v*']`.
-- **The daily `schedule` builds both**: `main`'s HEAD as `latest` for the
-  `push` environments, and the newest `v*` tag, rebuilt on the patched base
-  and pushed again as that tag, for the `release` ones. So a `release`
-  environment takes the base image's patches though nobody tags. A build that
-  would deploy nowhere (no `release` environment, no tag yet) is not planned.
-- **Either way the image is deployed by digest**, resolved from the tag the run
-  just pushed. A `workflow_dispatch` resolves by the ref it is run on. An
-  environment naming neither value fails the run before anything deploys.
-- **A shared app** (`scope: shared`, an app every environment calls) has no
-  `environments`: its root `deploy:` decides the same way, and it deploys as
-  the one environment `shared`.
+A monorepo app points `dockerfile:` and `manifest:` into its own directory
+and scopes its push trigger with `paths:`; the build context stays the root.
 
-A monorepo app points `dockerfile:` and `manifest:` into its own directory and
-scopes its push trigger with `paths:`, keeping the build context at the repo
-root.
+### The summary
 
-### The composite actions it is built from
+Every job writes its facts as a JSON report artifact (`plan`, `check`,
+`build-<7>`, `scan-<7>`, `deploy-<env>`, `verify-<env>`), and Summary renders
+them with the job results into the run's Markdown summary: a title (deployed
+where, or blocked at which stage), the commit line, one row per environment
+(image, digest, URL, state, the untouched ones too), the checks table, the
+image (size against the one it replaces, base, findings, exceptions) and the
+Trivy report, folded. When a `release` environment stayed behind, it says
+which tag ships the commit. A failure names the stage that blocked and what
+to do: the fixable CVEs for a scan, the failed passes for a check.
+[`scripts/summary.mjs`](../../scripts/summary.mjs) is the renderer; its tests
+pin the format.
 
-`release-docker.yaml` is the one workflow with steps of its own beyond
-`validate.yaml`: six composite actions, each a directory under `actions/`
-holding one `action.yaml`.
+### The scan
 
-| Action                                                     | Does                                                                                               |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| [`actions/infra-connect`](../../actions/infra-connect)     | Fetches the secrets from Infisical, joins Tailscale as `tag:ci`, logs in to the container registry |
-| [`actions/cluster-connect`](../../actions/cluster-connect) | Points kubectl and helm at the cluster as the job's GitHub OIDC identity                           |
-| [`actions/docker-build`](../../actions/docker-build)       | Builds and pushes the image with Buildx                                                            |
-| [`actions/image-scan`](../../actions/image-scan)           | Fails the release on a critical vulnerability that has a published fix                             |
-| [`actions/docker-deploy`](../../actions/docker-deploy)     | Deploys with `helm upgrade --install` against the shared app chart                                 |
-| [`actions/docker-cleanup`](../../actions/docker-cleanup)   | Prunes old `v*` tags and the node's unreferenced containerd content                                |
-
-**infra-connect.** One step for the three connections a deploy needs, with
-the job's GitHub OIDC token alone. It reads the registry account from
-Infisical project `studio-ci`, joins Tailscale through the trust credential
-for its ref (`main`, or a `v*` tag), resolves the registry's CNAME over the
-tailnet and pins it in `/etc/hosts` (the runner's resolver sometimes never
-chases it), then logs in.
-
-**cluster-connect.** Writes a kubeconfig whose user is an exec plugin minting
-the job's OIDC token on demand, so a long `--wait` never outlives a token, and
-exports `KUBECONFIG`. The CA is read from k3s' `/cacerts` over the tailnet, so
-a repave changes nothing here. `docker-deploy` calls it, and so does
-`studio-infrastructure`'s Smoke workflow.
-
-**docker-build.** Buildx with `network=host`, so buildkit resolves the
-registry's `*.ts.net` name through the runner's Tailscale resolver. Without it
-the push NXDOMAINs on the public CNAME chain.
-
-**docker-deploy.** `helm upgrade --install <image-name>-<env>` (`<image-name>`
-for env `shared`) against
-`oci://registry.internal.jterrazz.com/charts/app`, with the caller's manifest
-as the values file, once per resolved deployment. It first creates the
-namespace of the same name, labelled `studio.jterrazz.com/{tier,app,repository}`
-and `environment` (or `scope: shared`), which the cluster's ownership policy
-reads; the image name must be the manifest's `metadata.name`.
-
-It passes `meta.repository=${{ github.repository }}`, which through a reusable
-workflow is still the calling repository. The app chart stamps it on the
-Deployment as `studio.jterrazz.com/repository`, and that annotation is the only
-place the cluster records which repository rebuilds a workload:
-`studio-infrastructure`'s `make redeploy-apps` reads it off the live
-Deployments instead of holding a list that goes stale. An app that stops
-passing it drops out of the fleet rebuild.
-
-Any `*.json` file in a `dashboards/` directory beside the manifest is passed to
-the chart as `spec.dashboards.<name>`, and any `*.yaml` in an `alerts/`
-directory as `spec.alerts.<name>`. The image is deployed by digest, resolved
-from the tag just pushed, so two environments on `latest` each run what they
-were deployed with.
-
-The Helm timeout defaults to `5m`, which is headroom for cert-manager on a
-first deploy that introduces a new Certificate: DNS-01 against Cloudflare
-usually takes about a minute but queues when several apps roll out at once.
-Steady-state upgrades finish in seconds, so the higher default costs nothing.
-
-**image-scan.** Scans the image just pushed with Trivy, before any deploy.
-A **critical** vulnerability **with a published fix** fails the release: the
-image stays in the registry, deployed nowhere, until a rebuild or a bump
-clears it. A critical with no fix, and everything rated high, is reported in
-the run's summary and blocks nothing, since no rebuild could clear it.
-
-An exception lives in the repository's `.trivyignore.yaml`, one entry per CVE
-with a `statement` and an `expired_at`, so it is reviewed like code and lapses
-on its own. Trivy is a binary pinned by version and checksum, not
-`aquasecurity/trivy-action`, whose tags were rewritten in March 2026; its
-database is cached one entry per day.
+A **critical** vulnerability **with a published fix** blocks the deploy,
+once the gate is enforced; a critical with no fix and everything rated high
+is reported only, since no rebuild could clear it. An exception lives in the
+repository's `.trivyignore.yaml`, one entry per CVE with a `statement` and an
+`expired_at`. Trivy and hadolint are binaries pinned by version and checksum,
+not marketplace actions whose tags can be rewritten.
 
 The gate ships report-only (`enforce: "false"`): on 2026-10-28 three
-production images carried criticals, all in the lint toolchain's Go binaries
-that npm installs as production through optional peers. It is enforced once
-those images are clean.
+production images carried criticals, all in Go binaries of the lint
+toolchain that npm installs as production dependencies. It is enforced once
+the images are clean.
 
-**docker-cleanup.** Deletes old `v*` registry tags beyond the newest
-`keep-latest-versions` (default `3`), over the registry's HTTP API with a netrc file rather
-than a `curl -u` argument, since an argument sits in `ps` for anything else on the
-runner to read, for as long as the step runs.
+## The Publish
 
-It then prunes the node's unreferenced containerd content from a privileged
-pod pinned to the `control-plane` node, and only warns when that fails, since
-the release is deployed by then. It does not collect the registry's
-garbage: the tags it deletes are swept by the infrastructure's weekly
-`registry-gc` job, which skips itself while any upload is in flight, a guard
-a collection inside a release could never pass.
+`publish-npm.yaml` checks the package (no mutation), then runs
+`npm publish --access public --provenance` with the job's OIDC token: npm's
+trusted publishing authenticates with it and provenance signs with it. npm
+trusts one workflow file per package, by name, so a caller's file keeps the
+name its trusted publisher names. The publish step is bounded at 4 minutes:
+when the registry degrades, a publish hangs instead of failing.
 
-## release-npm.yaml
+`publish-go.yaml` checks with Go set up, then cross-compiles `binary-name`
+from `build-path` for each `targets` pair into a GitHub Release.
 
-Validates without mutation, then publishes with `npm publish --access public --provenance`. The
-caller's workflow file must be named `release.yaml`: that name is what npm
-provenance is configured against on the package.
+## The actions
 
-The publish step is bounded at 4 minutes and the publish job at 15: when the
-npm registry degrades, a publish hangs for minutes instead of failing.
+| Action                                                              | Does                                                                                         |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| [`check`](../../actions/check)                                      | The whole check, recorded as a checks table                                                  |
+| [`plan-deploy`](../../actions/plan-deploy)                          | Resolves the builds and deployments of a Deploy run                                          |
+| [`connect-infra`](../../actions/connect-infra)                      | Reads the registry account from Infisical, joins Tailscale, logs in to the registry          |
+| [`connect-cluster`](../../actions/connect-cluster)                  | Points kubectl and helm at the cluster as the job's GitHub OIDC identity                     |
+| [`build-image`](../../actions/build-image)                          | Builds and pushes `sha-<7>` with Buildx on the runner's tailnet                              |
+| [`scan-image`](../../actions/scan-image)                            | Scans an image with Trivy                                                                    |
+| [`deploy-app`](../../actions/deploy-app)                            | Creates the namespace the app owns, then `helm upgrade --install` by digest                  |
+| [`verify-app`](../../actions/verify-app)                            | Waits for the rollout, probes the routes, moves the alias                                    |
+| [`prune-images`](../../actions/prune-images)                        | Deletes old tags, keeping `latest`, three `v*` and five `sha-*` builds                       |
+| [`write-summary`](../../actions/write-summary)                      | Gathers the reports and renders the summary                                                  |
+| [`cache-artifacts`](../../actions/cache-artifacts)                  | The `.artifacts` cache, for a repository whose check is its own                              |
+| [`resolve-mutation-range`](../../actions/resolve-mutation-range)    | The commit a change started from, for a repository whose check is its own                    |
 
-## release-go.yaml
+An action's logic lives in [`scripts/`](../../scripts), which the action
+reaches through its own path, so it is the same code a unit test runs. A few
+facts behind the actions:
 
-Validates with the same three make targets, then cross-compiles. `binary-name`
-is required; `build-path` defaults to `.`, `go-version` to `1.24`, and
-`targets` to `darwin/arm64,darwin/amd64,linux/arm64,linux/amd64`.
+- **connect-infra** joins Tailscale through the trust credential for its ref
+  (`main`, or a `v*` tag), then resolves the registry's CNAME over the
+  tailnet and pins it in `/etc/hosts`: the runner's resolver sometimes never
+  chases it.
+- **build-image** runs Buildx with `network=host`, so buildkit resolves the
+  registry's `*.ts.net` name through Tailscale; without it the push NXDOMAINs.
+- **deploy-app** creates the namespace `<app>-<env>` (`<app>` for a shared
+  app), labelled `studio.jterrazz.com/{tier,app,repository}` and its
+  environment or scope, with the RoleBinding the repository acts through,
+  before helm: the cluster's ownership policy reads both. It passes
+  `meta.repository`, which the chart stamps on the Deployment, and
+  `studio-infrastructure`'s `make redeploy-apps` reads it back. Every
+  `dashboards/*.json` and `alerts/*.yaml` beside the manifest becomes a
+  `spec.dashboards` or `spec.alerts` entry.
+- **prune-images** keeps a recent `sha-*` build because another run may be
+  about to deploy it, and deletes a digest only when no kept tag shares it.
+  The registry's blobs are swept by the infrastructure's weekly `registry-gc`.
 
-It spells the gates out in its own job instead of calling `validate.yaml`, and
-shares the `.artifacts` cache with it through
-[`actions/artifacts-cache`](../../actions/artifacts-cache).
-
-## Where `release-docker.yaml` deploys to
-
-The cluster is [jterrazz/studio-infrastructure](https://github.com/jterrazz/studio-infrastructure).
-What an app repository owes it, and the `application.yaml` schema
-`docker-deploy` renders, are that repository's documentation, not this one's.
+What the manifest holds, and what the cluster promises an app in return, are
+`studio-infrastructure`'s
+[deploy contract](https://github.com/jterrazz/studio-infrastructure/blob/main/docs/reference/deploy-contract.md).
