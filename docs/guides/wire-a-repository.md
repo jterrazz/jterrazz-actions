@@ -92,8 +92,8 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
-  # The weekly rebuild: an untouched app still takes its base image's patches.
-  schedule: [{ cron: "0 4 * * 1" }]
+  # The daily rebuild: an untouched app still takes its base image's patches.
+  schedule: [{ cron: "0 4 * * *" }]
   workflow_dispatch:
 
 concurrency:
@@ -110,8 +110,9 @@ jobs:
 ```
 
 `image-name` must equal the manifest's `metadata.name`, or the deploy refuses.
-The `schedule:` rebuilds `main` weekly, so a floating base tag (`node:24-alpine`)
-takes its patches though no commit lands; an exact one moves through the
+The `schedule:` rebuilds `main` daily, so a floating base tag (`node:24-alpine`)
+takes its patches though no commit lands, within a day of their release, and
+every image is scanned again against that day's vulnerability database; an exact one moves through the
 Renovate preset beside the workflows:
 
 ```json

@@ -7,12 +7,12 @@ composite actions in `actions/` they are built from: five for
 `artifacts-cache`, which `validate.yaml` and `release-go.yaml` share. One workflow
 validates; three release, and each of them validates first.
 
-| Workflow                | Purpose                                                              | Trigger in the caller       |
-| ----------------------- | -------------------------------------------------------------------- | --------------------------- |
-| `validate.yaml`         | `make build` + `make lint` + `make test` (+ `make mutation`)       | push / PR to `main`         |
-| `release-docker.yaml`   | Validate (mutation if asked), Docker build, Helm deploy to the cluster, then prune old tags | push to `main`, `v*` tags, a weekly schedule |
-| `release-npm.yaml`      | Validate (no mutation), then `npm publish` with OIDC provenance                    | GitHub Release              |
-| `release-go.yaml`       | Cross-compile Go binaries into a GitHub Release                      | `v*` tags                   |
+| Workflow              | Purpose                                                                                     | Trigger in the caller                       |
+| --------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `validate.yaml`       | `make build` + `make lint` + `make test` (+ `make mutation`)                                | push / PR to `main`                         |
+| `release-docker.yaml` | Validate (mutation if asked), Docker build, Helm deploy to the cluster, then prune old tags | push to `main`, `v*` tags, a daily schedule |
+| `release-npm.yaml`    | Validate (no mutation), then `npm publish` with OIDC provenance                             | GitHub Release                              |
+| `release-go.yaml`     | Cross-compile Go binaries into a GitHub Release                                             | `v*` tags                                   |
 
 ## validate.yaml
 
@@ -75,11 +75,11 @@ two.
 
 ### Inputs
 
-| Input          | Default | Effect                                                                       |
-| -------------- | ------- | ---------------------------------------------------------------------------- |
-| `node-version` | `'24'`  | Installs Node with an npm cache. An explicit empty string skips the setup entirely; a caller that passes a version keeps it. |
+| Input          | Default | Effect                                                                                                                                                                                                                                                                                                                                                              |
+| -------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `node-version` | `'24'`  | Installs Node with an npm cache. An explicit empty string skips the setup entirely; a caller that passes a version keeps it.                                                                                                                                                                                                                                        |
 | `browsers`     | `false` | Provisions Playwright chromium before Test, cached by the version read from whichever lockfile the caller has: `package-lock.json`, `bun.lock`, or `pnpm-lock.yaml`, tried in that order, then its system packages, each attempt bounded at 2 minutes and retried up to 3 times. For suites that render pages through `specification.website()` (`@jterrazz/test`). |
-| `mutation`     | `true`  | Runs the `Makefile`'s `mutation` target after Test, where it has one. `release-npm.yaml` passes `false`; `release-docker.yaml` forwards its own. |
+| `mutation`     | `true`  | Runs the `Makefile`'s `mutation` target after Test, where it has one. `release-npm.yaml` passes `false`; `release-docker.yaml` forwards its own.                                                                                                                                                                                                                    |
 
 The `.artifacts/` cache the three gates run against is its own concept: [artifacts-cache.md](artifacts-cache.md).
 
@@ -96,7 +96,7 @@ Which environments a run deploys is resolved from the manifest's
 `environments` block, each entry's `deploy:`:
 
 - **`deploy: push`**: deployed by every push to `main`, with the `latest` it
-  just built. A `schedule`, the weekly rebuild that takes the base image's
+  just built. A `schedule`, the daily rebuild that takes the base image's
   patches, runs on `main`'s HEAD and resolves like a push, with mutation off:
   the push that brought that commit measured it already.
 - **`deploy: release`**: deployed by a `v*` tag, with the image built and
@@ -117,14 +117,15 @@ root.
 ### The composite actions it is built from
 
 `release-docker.yaml` is the one workflow with steps of its own beyond
-`validate.yaml`: five composite actions, each a directory under `actions/`
+`validate.yaml`: six composite actions, each a directory under `actions/`
 holding one `action.yaml`.
 
-| Action                                                | Does                                                                                                |
-| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Action                                                     | Does                                                                                               |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | [`actions/infra-connect`](../../actions/infra-connect)     | Fetches the secrets from Infisical, joins Tailscale as `tag:ci`, logs in to the container registry |
 | [`actions/cluster-connect`](../../actions/cluster-connect) | Points kubectl and helm at the cluster as the job's GitHub OIDC identity                           |
 | [`actions/docker-build`](../../actions/docker-build)       | Builds and pushes the image with Buildx                                                            |
+| [`actions/image-scan`](../../actions/image-scan)           | Fails the release on a critical vulnerability that has a published fix                             |
 | [`actions/docker-deploy`](../../actions/docker-deploy)     | Deploys with `helm upgrade --install` against the shared app chart                                 |
 | [`actions/docker-cleanup`](../../actions/docker-cleanup)   | Prunes old `v*` tags and the node's unreferenced containerd content                                |
 
@@ -171,6 +172,20 @@ The Helm timeout defaults to `5m`, which is headroom for cert-manager on a
 first deploy that introduces a new Certificate: DNS-01 against Cloudflare
 usually takes about a minute but queues when several apps roll out at once.
 Steady-state upgrades finish in seconds, so the higher default costs nothing.
+
+**image-scan.** Scans the image just pushed with Trivy, before any deploy.
+A **critical** vulnerability **with a published fix** fails the release: the
+image stays in the registry, deployed nowhere, until a rebuild or a bump
+clears it. A critical with no fix, and everything rated high, is reported in
+the run's summary and blocks nothing, since no rebuild could clear it. An
+exception lives in the repository's `.trivyignore.yaml`, one entry per CVE
+with a `statement` and an `expired_at`, so it is reviewed like code and lapses
+on its own. Trivy is installed as a binary pinned by version and checksum,
+not through `aquasecurity/trivy-action`, whose tags were rewritten in March
+2026; its database is cached one entry per day. The gate ships report-only (`enforce: "false"`):
+on 2026-10-28 three production images carried criticals, all in the lint
+toolchain's Go binaries that npm installs as production through optional
+peers; it is enforced once those images are clean.
 
 **docker-cleanup.** Deletes old `v*` registry tags beyond the newest
 `keep-latest-versions` (default `3`), over the registry's HTTP API with a netrc file rather

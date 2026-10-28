@@ -70,7 +70,7 @@ jobs:
         uses: jterrazz/studio-actions/actions/infra-connect@main
 
       # invariant: a `v*` tag is a release, built and pushed as `:<tag>`; anything else (a push to main,
-      # the weekly schedule, a dispatch on main) is a push, built as `:latest`. Either way docker-deploy
+      # the daily schedule, a dispatch on main) is a push, built as `:latest`. Either way docker-deploy
       # resolves the tag just pushed to its digest and deploys that.
       - name: Determine image tag
         id: image
@@ -93,6 +93,13 @@ jobs:
           tag: ${{ steps.image.outputs.tag }}
           dockerfile: ${{ inputs.dockerfile }}
 
+      # invariant: scanned after the push and before any deploy: a blocked image sits in the
+      # registry, deployed nowhere.
+      - name: Scan image
+        uses: jterrazz/studio-actions/actions/image-scan@main
+        with:
+          image: ${{ env.REGISTRY }}/${{ inputs.image-name }}:${{ steps.image.outputs.tag }}
+
       - name: Resolve deployments
         id: deployments
         env:
@@ -100,7 +107,7 @@ jobs:
           TRIGGER: ${{ steps.image.outputs.trigger }}
           IMAGE_TAG: ${{ steps.image.outputs.tag }}
         # invariant: `deploy` names what deploys an environment: `push` every push to main, `release`
-        # a `v*` tag, with the image built for that tag. A schedule (the weekly rebuild that takes the
+        # a `v*` tag, with the image built for that tag. A schedule (the daily rebuild that takes the
         # base image's patches) runs on the default branch's HEAD, so it is a push here: it rebuilds
         # `latest` and deploys the `push` environments, never a `release` one. A shared app
         # (`scope: shared`) carries one root `deploy` and deploys as the one environment `shared`

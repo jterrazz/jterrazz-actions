@@ -1,14 +1,28 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "description": [
-    "The base-image rule every Docker app extends, as github>jterrazz/studio-actions//renovate/apps.",
+    "The update rule every Docker app extends, as github>jterrazz/studio-actions//renovate/apps. Two lanes.",
+    "Routine lane: base images only, weekly, and never a version younger than 3 days, the window in which a hijacked or broken release is usually caught and pulled.",
     "A floating minor tag where the publisher offers one (node:24-alpine, oven/bun:1.4, ubuntu:26.04) takes its patches at build time, so it is left alone: never moved, never pinned by digest.",
     "An exact version (eceasy/cli-proxy-api:v8.0.44) moves weekly: a patch merges itself once every check on its PR is green; a minor or a major stays a PR the owner reviews.",
-    "Only the dockerfile manager runs; an app that wants another dependency followed opts it in from its own renovate.json."
+    "Security lane: a version that fixes a known vulnerability (GitHub's Dependabot alerts, and OSV for direct npm dependencies), in base images and npm packages alike, opens at once, skips the schedule and the 3-day wait, and merges itself on green checks: once a fix is public, its exploit is hours away."
   ],
   "extends": ["config:recommended", "schedule:weekly"],
-  "enabledManagers": ["dockerfile"],
+  "enabledManagers": ["dockerfile", "npm"],
+  "minimumReleaseAge": "3 days",
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"],
+    "automerge": true,
+    "platformAutomerge": false
+  },
   "packageRules": [
+    {
+      "description": "npm dependencies move only through the security lane: routine npm updates stay the repository's own business. The security lane's `enabled: true` re-enables a vulnerable one, as Renovate's security:only-security-updates preset does.",
+      "matchManagers": ["npm"],
+      "enabled": false
+    },
     {
       "description": "A tag that is not an exact x.y.z (a floating major or minor, a codename) is the publisher's to move.",
       "matchManagers": ["dockerfile"],

@@ -13,7 +13,7 @@ Callers reference `@main`, so a change here lands on every repository's next
 run. The workflows are `validate`, `release-npm`, `release-docker` and
 `release-go`; the composite actions they are built from are
 `mutation-since`, `artifacts-cache`, `infra-connect`, `docker-build`,
-`docker-deploy`, `cluster-connect` and `docker-cleanup`.
+`image-scan`, `docker-deploy`, `cluster-connect` and `docker-cleanup`.
 
 ## Where to read
 
