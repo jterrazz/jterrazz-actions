@@ -1,0 +1,30 @@
+name: Prune images
+description: Delete old registry tags, keeping latest, the newest v* versions and the newest sha-* builds
+
+inputs:
+  registry:
+    description: Container registry hostname
+    default: "registry.internal.jterrazz.com"
+  image-name:
+    description: Image name to prune
+    required: true
+  keep-latest-versions:
+    description: Number of recent v* tags to keep
+    default: "3"
+  keep-builds:
+    description: Number of recent sha-* builds to keep
+    default: "5"
+
+runs:
+  using: composite
+  steps:
+    - name: Prune
+      shell: bash
+      env:
+        REGISTRY: ${{ inputs.registry }}
+        IMAGE: ${{ inputs.image-name }}
+        KEEP_VERSIONS: ${{ inputs.keep-latest-versions }}
+        KEEP_BUILDS: ${{ inputs.keep-builds }}
+      # value: a release is live by now, so a registry hiccup here warns and blocks nothing.
+      run: |
+        "$GITHUB_ACTION_PATH/../../scripts/prune.sh" "$IMAGE" || echo "::warning::could not prune $IMAGE's old tags"

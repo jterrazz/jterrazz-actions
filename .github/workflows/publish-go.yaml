@@ -1,0 +1,78 @@
+name: Publish
+
+on:
+  workflow_call:
+    inputs:
+      binary-name:
+        description: Name of the output binary
+        required: true
+        type: string
+      build-path:
+        description: Path to the Go main package
+        default: "."
+        type: string
+      go-version:
+        description: Go version to use
+        default: "1.24"
+        type: string
+      node-version:
+        description: Node.js version for the checks (empty skips it)
+        default: "24"
+        type: string
+      targets:
+        description: Comma-separated GOOS/GOARCH pairs to build
+        default: "darwin/arm64,darwin/amd64,linux/arm64,linux/amd64"
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-26.04-arm
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check
+        uses: jterrazz/studio-actions/actions/check@main
+        with:
+          node-version: ${{ inputs.node-version }}
+          go-version: ${{ inputs.go-version }}
+          mutation: false
+
+  publish:
+    name: Publish
+    needs: check
+    runs-on: ubuntu-26.04-arm
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ inputs.go-version }}
+
+      - name: Build binaries
+        env:
+          TARGETS: ${{ inputs.targets }}
+          BINARY: ${{ inputs.binary-name }}
+          BUILD_PATH: ${{ inputs.build-path }}
+        run: |
+          set -euo pipefail
+          IFS=',' read -ra PAIRS <<< "$TARGETS"
+          for pair in "${PAIRS[@]}"; do
+            os="${pair%/*}"
+            arch="${pair#*/}"
+            output="${BINARY}-${os}-${arch}"
+            echo "Building ${output}"
+            GOOS="${os}" GOARCH="${arch}" go build -o "dist/${output}" "$BUILD_PATH"
+          done
+
+      - name: Create release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          generate_release_notes: true
+          files: dist/*

@@ -1,0 +1,234 @@
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        description: Image name (without registry prefix); must be the manifest's metadata.name
+        required: true
+        type: string
+      node-version:
+        description: Node.js version for the checks (empty skips it)
+        default: "24"
+        type: string
+      browsers:
+        description: Provision Playwright chromium before Test
+        default: false
+        type: boolean
+      mutation:
+        description: Run the Makefile's `mutation` target in Check, for an app whose push to main is its release
+        default: false
+        type: boolean
+      timeout:
+        description: Helm deploy timeout (5m covers cert-manager on a first deploy; see actions/deploy-app)
+        default: "5m"
+        type: string
+      manifest:
+        description: Path to the app's manifest
+        default: ".infrastructure/application.yaml"
+        type: string
+      dockerfile:
+        description: Path to the Dockerfile
+        default: "Dockerfile"
+        type: string
+
+env:
+  REGISTRY: registry.internal.jterrazz.com
+
+# invariant: Plan → (Check ‖ Build) → Scan → Deploy · <env> → Verify · <env>, then Summary. The
+# image builds while the checks run, and deploys only once both passed and the scan let it
+# through. Each job hands its facts to Summary as a JSON report artifact.
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-26.04-arm
+    permissions:
+      contents: read
+    outputs:
+      builds: ${{ steps.plan.outputs.builds }}
+      deployments: ${{ steps.plan.outputs.deployments }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Plan
+        id: plan
+        uses: jterrazz/studio-actions/actions/plan-deploy@main
+        with:
+          image-name: ${{ inputs.image-name }}
+          manifest: ${{ inputs.manifest }}
+          report: plan
+
+  check:
+    name: Check
+    runs-on: ubuntu-26.04-arm
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # value: the whole history only for mutation, which a schedule never runs.
+          fetch-depth: ${{ inputs.mutation && github.event_name == 'push' && '0' || '1' }}
+
+      - name: Check
+        uses: jterrazz/studio-actions/actions/check@main
+        with:
+          node-version: ${{ inputs.node-version }}
+          browsers: ${{ inputs.browsers }}
+          # value: a schedule rebuilds a commit its push already gated, and with no commit to diff
+          # from its mutation would measure everything, cold.
+          mutation: ${{ inputs.mutation && github.event_name != 'schedule' }}
+          dockerfile: ${{ inputs.dockerfile }}
+          summary: false
+          report: check
+
+  # invariant: the images are linux/arm64 (the node is Apple silicon), built natively.
+  build:
+    name: Build · ${{ matrix.build.tag }}
+    needs: plan
+    if: needs.plan.outputs.builds != '[]'
+    runs-on: ubuntu-26.04-arm
+    # invariant: id-token is how every connection is made (Infisical, Tailscale, the cluster); a
+    # reusable workflow can only narrow what its caller grants, so the calling job grants it too.
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        build: ${{ fromJSON(needs.plan.outputs.builds) }}
+    steps:
+      # value: a scheduled rebuild of the newest `v*` tag checks that tag out.
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ matrix.build.ref }}
+
+      - name: Connect to infrastructure
+        uses: jterrazz/studio-actions/actions/connect-infra@main
+
+      - name: Build image
+        uses: jterrazz/studio-actions/actions/build-image@main
+        with:
+          image-name: ${{ inputs.image-name }}
+          sha: ${{ matrix.build.sha }}
+          alias: ${{ matrix.build.alias }}
+          dockerfile: ${{ inputs.dockerfile }}
+          report: build-${{ matrix.build.short }}
+
+  # invariant: scanned once pushed and before any deploy: a blocked image sits in the registry,
+  # deployed nowhere and aliased nowhere.
+  scan:
+    name: Scan · ${{ matrix.build.tag }}
+    needs: [plan, build]
+    runs-on: ubuntu-26.04-arm
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        build: ${{ fromJSON(needs.plan.outputs.builds) }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ matrix.build.ref }}
+          sparse-checkout: .trivyignore.yaml
+          sparse-checkout-cone-mode: false
+
+      - name: Connect to infrastructure
+        uses: jterrazz/studio-actions/actions/connect-infra@main
+
+      - name: Scan image
+        uses: jterrazz/studio-actions/actions/scan-image@main
+        with:
+          image: ${{ env.REGISTRY }}/${{ inputs.image-name }}:${{ matrix.build.tag }}
+          tag: ${{ matrix.build.tag }}
+          summary: false
+          report: scan-${{ matrix.build.short }}
+
+  deploy:
+    name: Deploy · ${{ matrix.target.env }}
+    needs: [plan, check, scan]
+    runs-on: ubuntu-26.04-arm
+    permissions:
+      contents: read
+      id-token: write
+    # invariant: one deploy per app and environment at a time, never cancelled: a newer run queues
+    # behind a running one (GitHub keeps the newest pending run of a group).
+    concurrency:
+      group: deploy-${{ inputs.image-name }}-${{ matrix.target.env }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.plan.outputs.deployments) }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ matrix.target.ref }}
+
+      - name: Connect to infrastructure
+        uses: jterrazz/studio-actions/actions/connect-infra@main
+
+      - name: Connect to the cluster
+        uses: jterrazz/studio-actions/actions/connect-cluster@main
+
+      - name: Roll out
+        uses: jterrazz/studio-actions/actions/deploy-app@main
+        with:
+          image-name: ${{ inputs.image-name }}
+          environment: ${{ matrix.target.env }}
+          tag: ${{ matrix.target.tag }}
+          manifest: ${{ inputs.manifest }}
+          timeout: ${{ inputs.timeout }}
+          report: deploy-${{ matrix.target.env }}
+
+  verify:
+    name: Verify · ${{ matrix.target.env }}
+    needs: [plan, deploy]
+    runs-on: ubuntu-26.04-arm
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.plan.outputs.deployments) }}
+    steps:
+      - name: Connect to infrastructure
+        uses: jterrazz/studio-actions/actions/connect-infra@main
+
+      - name: Connect to the cluster
+        uses: jterrazz/studio-actions/actions/connect-cluster@main
+
+      - name: Verify
+        uses: jterrazz/studio-actions/actions/verify-app@main
+        with:
+          image-name: ${{ inputs.image-name }}
+          environment: ${{ matrix.target.env }}
+          tag: ${{ matrix.target.tag }}
+          alias: ${{ matrix.target.alias }}
+          report: verify-${{ matrix.target.env }}
+
+      - name: Prune old images
+        uses: jterrazz/studio-actions/actions/prune-images@main
+        with:
+          image-name: ${{ inputs.image-name }}
+
+  summary:
+    name: Summary
+    needs: [plan, check, build, scan, deploy, verify]
+    if: always()
+    runs-on: ubuntu-26.04-arm
+    permissions:
+      contents: read
+    steps:
+      - name: Write summary
+        uses: jterrazz/studio-actions/actions/write-summary@main
+        with:
+          needs: ${{ toJSON(needs) }}
+          image-name: ${{ inputs.image-name }}

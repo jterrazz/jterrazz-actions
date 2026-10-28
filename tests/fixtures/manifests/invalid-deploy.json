@@ -1,0 +1,8 @@
+{
+    "metadata": { "name": "broken" },
+    "environments": {
+        "staging": { "deploy": "push" },
+        "prod": { "deploy": "always" },
+        "preview": {}
+    }
+}

@@ -1,0 +1,25 @@
+name: Resolve the mutation range
+description: The commit a push or a pull request started from, falling back to one the clone holds
+
+inputs:
+  working-directory:
+    description: Directory of the repository's checkout
+    default: "."
+
+outputs:
+  since:
+    description: The commit to measure the change since, empty when the event carries none
+    value: ${{ steps.since.outputs.since }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve
+      id: since
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        BASE: ${{ github.event.pull_request.base.sha }}
+        BEFORE: ${{ github.event.before }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      run: echo "since=$("$GITHUB_ACTION_PATH/../../scripts/mutation-since.sh")" >> "$GITHUB_OUTPUT"

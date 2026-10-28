@@ -1,0 +1,70 @@
+name: Verify app
+description: Wait for an environment's rollout, probe its routes as their smoke annotations say, then move its alias onto the verified digest
+
+inputs:
+  registry:
+    description: Container registry hostname
+    default: "registry.internal.jterrazz.com"
+  image-name:
+    description: Image name (without registry prefix)
+    required: true
+  environment:
+    description: The environment deployed; `shared` is a shared app's one release
+    required: true
+  tag:
+    description: The immutable tag the environment was deployed from (sha-<7>)
+    required: true
+  alias:
+    description: The tag moved onto the digest once verified (latest, or the v* tag); empty moves none
+    default: ""
+  report:
+    description: Name of the artifact the verify report is uploaded as (empty uploads none)
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Verify
+      id: verify
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image-name }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        REGISTRY: ${{ inputs.registry }}
+        TAG: ${{ inputs.tag }}
+      run: |
+        set -euo pipefail
+        DIGEST=$(docker buildx imagetools inspect "$REGISTRY/$IMAGE:$TAG" --format '{{json .Manifest}}' | jq -r .digest)
+        echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+        export DIGEST
+        if [ "$ENVIRONMENT" = "shared" ]; then ns="$IMAGE"; else ns="$IMAGE-$ENVIRONMENT"; fi
+        mkdir -p "$RUNNER_TEMP/studio-report"
+        export NAMESPACE="$ns" REPORT="$RUNNER_TEMP/studio-report/verify-$ENVIRONMENT.json"
+        "$GITHUB_ACTION_PATH/../../scripts/verify.sh"
+        echo "superseded=$(jq -r .superseded "$REPORT")" >> "$GITHUB_OUTPUT"
+
+    # invariant: an alias moves only onto a digest an environment runs and answers with, so a
+    # build that failed its scan, its rollout or its probes never becomes `latest` or a version.
+    - name: Promote
+      if: inputs.alias != '' && steps.verify.outputs.superseded != 'true'
+      shell: bash
+      env:
+        REGISTRY: ${{ inputs.registry }}
+        IMAGE: ${{ inputs.image-name }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        DIGEST: ${{ steps.verify.outputs.digest }}
+        ALIAS: ${{ inputs.alias }}
+      run: |
+        set -euo pipefail
+        "$GITHUB_ACTION_PATH/../../scripts/promote.sh" "$IMAGE" "$DIGEST" "$ALIAS"
+        report="$RUNNER_TEMP/studio-report/verify-$ENVIRONMENT.json"
+        jq --arg alias "$ALIAS" '.promoted = $alias' "$report" > "$report.tmp" && mv "$report.tmp" "$report"
+
+    - name: Upload the verify report
+      if: always() && inputs.report != ''
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ${{ inputs.report }}
+        path: ${{ runner.temp }}/studio-report/verify-*.json
+        retention-days: 7
+        if-no-files-found: ignore

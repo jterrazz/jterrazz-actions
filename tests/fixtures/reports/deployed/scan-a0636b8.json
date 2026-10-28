@@ -1,0 +1,1 @@
+{ "tag": "sha-a0636b8", "image": "registry.internal.jterrazz.com/signews-api@sha256:4e84", "outcome": "clean", "enforced": false, "critical": 0, "high": 0, "fixableCritical": 0, "exceptions": 0, "findings": [] }

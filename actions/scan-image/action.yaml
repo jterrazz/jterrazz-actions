@@ -1,0 +1,158 @@
+name: Scan image
+description: Scan an image with Trivy; a critical vulnerability with a published fix fails the run once enforced, and everything else is reported
+
+inputs:
+  image:
+    description: The image to scan (registry/name@digest, registry/name:tag, or a local image)
+    required: true
+  tag:
+    description: The tag the report is filed under (sha-<7>)
+    default: ""
+  enforce:
+    description: Fail on a fixable critical ("true"), or report it as a warning alone ("false")
+    # hazard: report-only until the production images stop shipping the lint and test toolchains
+    # (ls-lint and oxlint's Go binaries carry the criticals found on 2026-10-28); flip it then.
+    default: "false"
+  ignore-file:
+    description: The repository's exceptions, each with a statement and an expiry (Trivy's .trivyignore.yaml)
+    default: ".trivyignore.yaml"
+  summary:
+    description: Write the findings to the job's summary ("false" when a Summary job renders them)
+    default: "true"
+  report:
+    description: Name of the artifact the scan report is uploaded as (empty uploads none)
+    default: ""
+
+outputs:
+  critical:
+    description: Critical findings
+    value: ${{ steps.scan.outputs.critical }}
+  high:
+    description: High findings
+    value: ${{ steps.scan.outputs.high }}
+  fixable-critical:
+    description: Critical findings with a published fix, the ones the gate blocks on
+    value: ${{ steps.scan.outputs.fixable-critical }}
+
+runs:
+  using: composite
+  steps:
+    # invariant: the binary, not aquasecurity/trivy-action: that action's tags were rewritten in
+    # March 2026, and a binary pinned by version and checksum cannot move under us. The version is
+    # weeks old on purpose, the same quarantine the Renovate preset gives every other dependency.
+    - name: Install Trivy
+      shell: bash
+      env:
+        VERSION: "0.75.0"
+        SHA256: "a1ee9f6ffb7d112b64ff726a2a0717c21175c1114361391f4a132956751a13b3"
+      run: |
+        set -euo pipefail
+        archive="trivy_${VERSION}_Linux-ARM64.tar.gz"
+        curl -fsSL -o "$RUNNER_TEMP/$archive" \
+          "https://github.com/aquasecurity/trivy/releases/download/v${VERSION}/${archive}"
+        echo "${SHA256}  $RUNNER_TEMP/$archive" | sha256sum --check --quiet
+        tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" trivy
+        echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+        echo "day=$(date -u +%Y-%m-%d)" >> "$GITHUB_ENV"
+
+    # value: the vulnerability database is ~60 MB and refreshed several times a day; one cache
+    # entry per day keeps every scan of that day off the download.
+    - name: Restore the vulnerability database
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/trivy
+        key: trivy-db-${{ runner.arch }}-${{ env.day }}
+        restore-keys: trivy-db-${{ runner.arch }}-
+
+    # invariant: the gate is CRITICAL with a published fix. A fixable critical fails the run
+    # before anything deploys; one without a fix is reported, never blocking, since no rebuild can
+    # clear it. HIGH is reported for the reader alone.
+    # outside: a registry image is read with the credentials connect-infra exported, passed as
+    # environment, never as arguments.
+    - name: Scan
+      id: scan
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+        TAG: ${{ inputs.tag }}
+        IGNORE_FILE: ${{ inputs.ignore-file }}
+        ENFORCE: ${{ inputs.enforce }}
+        SUMMARY: ${{ inputs.summary }}
+        TRIVY_USERNAME: ${{ env.DOCKER_REGISTRY_USERNAME }}
+        TRIVY_PASSWORD: ${{ env.DOCKER_REGISTRY_PASSWORD }}
+        TRIVY_NO_PROGRESS: "true"
+        TRIVY_SCANNERS: vuln
+        # outside: Trivy reads a remote index as linux/amd64 unless told; the images are arm64 alone.
+        TRIVY_PLATFORM: linux/arm64
+      run: |
+        set -euo pipefail
+        dir="$RUNNER_TEMP/studio-report"
+        mkdir -p "$dir"
+        report="$dir/scan-${TAG#sha-}.json"
+        ignore=()
+        exceptions=0
+        if [ -f "$IGNORE_FILE" ]; then
+          ignore=(--ignorefile "$IGNORE_FILE")
+          exceptions=$(grep -cE '^\s*-\s*id:' "$IGNORE_FILE" || true)
+        fi
+
+        # hazard: a scanner that cannot run (registry, database) is an outage, not a finding: it
+        # fails the run only once the gate is enforced.
+        if ! trivy image --quiet "${ignore[@]}" --severity CRITICAL,HIGH --format json \
+          --output "$RUNNER_TEMP/trivy.json" "$IMAGE"; then
+          jq -n --arg tag "$TAG" --arg image "$IMAGE" --argjson enforced "$ENFORCE" \
+            '{tag: $tag, image: $image, outcome: "error", enforced: $enforced, critical: 0, high: 0, fixableCritical: 0, exceptions: 0, findings: []}' > "$report"
+          if [ "$ENFORCE" = "true" ]; then echo "::error::Trivy could not scan $IMAGE"; exit 1; fi
+          echo "::warning::Trivy could not scan $IMAGE (reported, not enforced)"
+          exit 0
+        fi
+
+        findings=$(jq '[.Results[]?.Vulnerabilities[]? | {id: .VulnerabilityID, severity: .Severity, pkg: .PkgName, installed: .InstalledVersion, fixed: (.FixedVersion // ""), title: (.Title // "")}]
+          | unique_by([.id, .pkg, .installed]) | sort_by(if .severity == "CRITICAL" then 0 else 1 end, .pkg)' "$RUNNER_TEMP/trivy.json")
+        critical=$(jq '[.[] | select(.severity == "CRITICAL")] | length' <<< "$findings")
+        high=$(jq '[.[] | select(.severity == "HIGH")] | length' <<< "$findings")
+        fixable=$(jq '[.[] | select(.severity == "CRITICAL" and .fixed != "")] | length' <<< "$findings")
+        outcome=clean
+        if [ $((critical + high)) -gt 0 ]; then outcome=findings; fi
+        if [ "$fixable" -gt 0 ] && [ "$ENFORCE" = "true" ]; then outcome=blocked; fi
+        jq -n --arg tag "$TAG" --arg image "$IMAGE" --arg outcome "$outcome" --argjson enforced "$ENFORCE" \
+          --argjson critical "$critical" --argjson high "$high" --argjson fixable "$fixable" \
+          --argjson exceptions "$exceptions" --argjson findings "$findings" \
+          '{tag: $tag, image: $image, outcome: $outcome, enforced: $enforced, critical: $critical, high: $high, fixableCritical: $fixable, exceptions: $exceptions, findings: $findings}' > "$report"
+        {
+          echo "critical=$critical"
+          echo "high=$high"
+          echo "fixable-critical=$fixable"
+        } >> "$GITHUB_OUTPUT"
+
+        echo "$critical critical, $high high, $fixable critical with a published fix, $exceptions exceptions"
+        jq -r '.[] | "\(.severity)\t\(.id)\t\(.pkg) \(.installed) -> \(if .fixed == "" then "no fix" else .fixed end)"' <<< "$findings"
+        if [ "$SUMMARY" = "true" ]; then
+          {
+            echo "### Vulnerabilities in \`$IMAGE\`"
+            echo
+            echo "$critical critical · $high high · $fixable fixable critical · $exceptions exceptions"
+            echo
+            echo "| ID | Severity | Package | Installed | Fixed in |"
+            echo "| --- | --- | --- | --- | --- |"
+            jq -r '.[] | "| \(.id) | \(.severity) | \(.pkg) | \(.installed) | \(if .fixed == "" then "no fix yet" else .fixed end) |"' <<< "$findings"
+          } >> "$GITHUB_STEP_SUMMARY"
+        fi
+
+        if [ "$fixable" -gt 0 ]; then
+          message="$IMAGE carries $fixable critical vulnerabilities with a published fix: rebuild or bump what carries it, or record an exception in $IGNORE_FILE"
+          if [ "$ENFORCE" = "true" ]; then
+            echo "::error::$message"
+            exit 1
+          fi
+          echo "::warning::$message (reported, not enforced)"
+        fi
+
+    - name: Upload the scan report
+      if: always() && inputs.report != ''
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ${{ inputs.report }}
+        path: ${{ runner.temp }}/studio-report/scan-*.json
+        retention-days: 7
+        if-no-files-found: ignore

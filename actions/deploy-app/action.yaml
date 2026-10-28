@@ -1,0 +1,160 @@
+name: Deploy app
+description: Roll an image out to one environment with helm upgrade --install against the shared app chart, by digest
+
+inputs:
+  registry:
+    description: Container registry hostname
+    default: "registry.internal.jterrazz.com"
+  image-name:
+    description: Image name (without registry prefix); must be the manifest's metadata.name
+    required: true
+  environment:
+    description: The environment to deploy; `shared` is a shared app's one release
+    required: true
+  tag:
+    description: The immutable tag to deploy (sha-<7>), resolved to its digest
+    required: true
+  manifest:
+    description: Path to the Helm values manifest
+    default: ".infrastructure/application.yaml"
+  timeout:
+    description: Helm deploy timeout
+    # value: 5m gives cert-manager headroom on the first deploy that introduces a new
+    # Certificate (DNS-01 against Cloudflare typically takes ~60s but queues when several apps
+    # roll out at once); steady-state upgrades finish in seconds, so it costs nothing.
+    default: "5m"
+  report:
+    description: Name of the artifact the deploy report is uploaded as (empty uploads none)
+    default: ""
+
+outputs:
+  namespace:
+    description: The namespace (and release) deployed
+    value: ${{ steps.deploy.outputs.namespace }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Helm
+      uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+      with:
+        version: "v4.3.1"
+
+    - name: Log in to the chart registry
+      shell: bash
+      env:
+        REGISTRY: ${{ inputs.registry }}
+      run: |
+        # hazard: read from the environment, never interpolated into the script text by an expression.
+        printf '%s' "$DOCKER_REGISTRY_PASSWORD" | helm registry login "$REGISTRY" \
+          --username "$DOCKER_REGISTRY_USERNAME" --password-stdin
+
+    # invariant: `github.repository` is the CALLING repository even through a reusable workflow,
+    # which is the point: the app chart stamps it on the Deployment as
+    # `studio.jterrazz.com/repository`, the one place the cluster records which repository rebuilds
+    # a workload, read by studio-infrastructure's `make redeploy-apps`.
+    #
+    # The chart is handed NO credential: `registry-credentials` is synced into the namespace by the
+    # Infisical operator.
+    #
+    # hazard: the namespace and its RoleBinding come BEFORE helm, and helm gets no
+    # `--create-namespace`. The repository owns a namespace only through the
+    # `studio.jterrazz.com/repository` label it sets when creating it, and works inside it only
+    # through the RoleBinding it grants itself there; studio-infrastructure's app-deployer-ownership
+    # policy enforces both.
+    #
+    # invariant: the image is deployed BY DIGEST, so two environments each run what they were
+    # deployed with, and a later push to any tag changes nothing until the next deploy.
+    - name: Roll out
+      id: deploy
+      shell: bash
+      env:
+        REGISTRY: ${{ inputs.registry }}
+        IMAGE: ${{ inputs.image-name }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        TAG: ${{ inputs.tag }}
+        MANIFEST: ${{ inputs.manifest }}
+        TIMEOUT: ${{ inputs.timeout }}
+      run: |
+        set -euo pipefail
+        repo_name="${GITHUB_REPOSITORY#*/}"
+        # invariant: the image is named after the app, whose name the namespace, the Infisical folder
+        # and the ownership policy's `studio.jterrazz.com/app` label all carry.
+        app=$(yq '.metadata.name' "$MANIFEST")
+        if [ "$app" != "$IMAGE" ]; then
+          echo "::error file=$MANIFEST::metadata.name ($app) differs from image-name ($IMAGE): the namespace, the secrets folder and the image must share the app's one name"
+          exit 1
+        fi
+        # invariant: <app>-<env>, or <app> for a shared app: the one name of the namespace, release,
+        # volume and data directory (studio-infrastructure ADR-023, ADR-029).
+        if [ "$ENVIRONMENT" = "shared" ]; then
+          ns="$IMAGE"
+          scope_label="studio.jterrazz.com/scope: shared"
+        else
+          ns="${IMAGE}-${ENVIRONMENT}"
+          scope_label="studio.jterrazz.com/environment: $ENVIRONMENT"
+        fi
+        echo "namespace=$ns" >> "$GITHUB_OUTPUT"
+        DIGEST=$(docker buildx imagetools inspect "$REGISTRY/$IMAGE:$TAG" --format '{{json .Manifest}}' | jq -r .digest)
+        report="$RUNNER_TEMP/studio-report/deploy-$ENVIRONMENT.json"
+        mkdir -p "$RUNNER_TEMP/studio-report"
+        jq -n --arg env "$ENVIRONMENT" --arg ns "$ns" --arg tag "$TAG" --arg digest "$DIGEST" \
+          '{env: $env, namespace: $ns, tag: $tag, digest: $digest, outcome: "failure"}' > "$report"
+
+        # invariant: .infrastructure/dashboards/*.json and .infrastructure/alerts/*.yaml beside the
+        # manifest, each file one entry by its name.
+        file_args=()
+        dir="$(dirname "$MANIFEST")"
+        for f in "$dir"/dashboards/*.json; do
+          [ -f "$f" ] && file_args+=(--set-file "spec.dashboards.$(basename "$f" .json)=$f")
+        done
+        for f in "$dir"/alerts/*.yaml; do
+          [ -f "$f" ] && file_args+=(--set-file "spec.alerts.$(basename "$f" .yaml)=$f")
+        done
+
+        echo "image: $REGISTRY/$IMAGE@$DIGEST"
+        kubectl apply -f - <<EOF
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: $ns
+          labels:
+            studio.jterrazz.com/tier: app
+            studio.jterrazz.com/app: $IMAGE
+            $scope_label
+            studio.jterrazz.com/repository: $repo_name
+        ---
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: RoleBinding
+        metadata:
+          name: app-namespace-admin
+          namespace: $ns
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+          name: app-namespace-admin
+        subjects:
+          - apiGroup: rbac.authorization.k8s.io
+            kind: User
+            name: github:$GITHUB_REPOSITORY
+        EOF
+        helm upgrade --install "$ns" \
+          "oci://$REGISTRY/charts/app" \
+          -f "$MANIFEST" \
+          --set environment="$ENVIRONMENT" \
+          --set spec.image="$REGISTRY/$IMAGE@$DIGEST" \
+          --set meta.repository="$GITHUB_REPOSITORY" \
+          "${file_args[@]}" \
+          -n "$ns" \
+          --history-max 3 \
+          --wait --timeout "$TIMEOUT" --rollback-on-failure
+        jq '.outcome = "success"' "$report" > "$report.tmp" && mv "$report.tmp" "$report"
+
+    - name: Upload the deploy report
+      if: always() && inputs.report != ''
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ${{ inputs.report }}
+        path: ${{ runner.temp }}/studio-report/deploy-*.json
+        retention-days: 7
+        if-no-files-found: ignore

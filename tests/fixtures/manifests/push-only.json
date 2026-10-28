@@ -1,0 +1,6 @@
+{
+    "metadata": { "name": "jterrazz-web" },
+    "environments": {
+        "prod": { "deploy": "push" }
+    }
+}

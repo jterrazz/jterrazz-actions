@@ -1,0 +1,10 @@
+{
+    "gates": [
+        { "name": "Install", "outcome": "success", "seconds": 9 },
+        { "name": "Build", "outcome": "success", "seconds": 17 },
+        { "name": "Lint", "outcome": "success", "seconds": 0, "cached": true },
+        { "name": "Dockerfile", "outcome": "success", "seconds": 1, "note": "2 warnings" },
+        { "name": "Test", "outcome": "success", "seconds": 1, "cached": true },
+        { "name": "Mutation", "outcome": "off", "note": "off on this run" }
+    ]
+}

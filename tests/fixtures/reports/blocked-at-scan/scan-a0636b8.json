@@ -1,0 +1,15 @@
+{
+    "tag": "sha-a0636b8",
+    "image": "registry.internal.jterrazz.com/signews-api@sha256:4e84",
+    "outcome": "blocked",
+    "enforced": true,
+    "critical": 1,
+    "high": 2,
+    "fixableCritical": 1,
+    "exceptions": 1,
+    "findings": [
+        { "id": "CVE-2026-1234", "severity": "CRITICAL", "pkg": "undici", "installed": "6.21.0", "fixed": "6.21.2", "title": "request smuggling" },
+        { "id": "CVE-2026-2222", "severity": "HIGH", "pkg": "brace-expansion", "installed": "2.0.1", "fixed": "2.0.2", "title": "ReDoS" },
+        { "id": "CVE-2026-3333", "severity": "HIGH", "pkg": "libssl3", "installed": "3.3.0", "fixed": "", "title": "timing" }
+    ]
+}

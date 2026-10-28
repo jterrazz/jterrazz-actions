@@ -1,0 +1,241 @@
+name: Check
+description: Install, then make build, lint and test (and mutation), with hadolint over the Dockerfile, recorded as a checks table
+
+inputs:
+  working-directory:
+    description: The project's directory, where its Makefile is
+    default: "."
+  node-version:
+    description: Node.js version to install (empty skips it)
+    default: "24"
+  go-version:
+    description: Go version to install (empty skips it)
+    default: ""
+  browsers:
+    description: Provision Playwright chromium before Test, cached by the version the lockfile names
+    default: "false"
+  mutation:
+    description: Run the Makefile's `mutation` target after Test, over the change the event carries
+    default: "true"
+  dockerfile:
+    description: The Dockerfile hadolint reads, relative to the working directory, when it exists (empty skips it)
+    default: "Dockerfile"
+  cache-paths:
+    description: The paths the `.artifacts` cache keeps, one per line (empty is the working directory's `.artifacts`)
+    default: ""
+  summary:
+    description: Write the checks table to the job's summary ("false" when a Summary job renders it)
+    default: "true"
+  report:
+    description: Name of the artifact the checks report is uploaded as (empty uploads none)
+    default: "check"
+
+runs:
+  using: composite
+  steps:
+    # invariant: every option is decided here, once, so an option a project does not use is an
+    # inner step that never runs, never a skipped step in the job's list.
+    - name: Prepare
+      id: prepare
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        CACHE_PATHS: ${{ inputs.cache-paths }}
+        DOCKERFILE: ${{ inputs.dockerfile }}
+        BROWSERS: ${{ inputs.browsers }}
+      run: |
+        set -euo pipefail
+        dir="$RUNNER_TEMP/studio-check"
+        rm -rf "$dir" && mkdir -p "$dir"
+        {
+          echo "STUDIO_CHECK_DIR=$dir"
+          # value: npm's audit duplicates the image scan and Renovate's security lane, and its funding
+          # notes ask nothing of CI; both stay quiet for the whole job, `make`'s own installs included.
+          echo "npm_config_audit=false"
+          echo "npm_config_fund=false"
+          echo "npm_config_update_notifier=false"
+        } >> "$GITHUB_ENV"
+        lock=none
+        for candidate in package-lock.json bun.lock pnpm-lock.yaml; do
+          if [ -f "$candidate" ]; then lock="$candidate"; break; fi
+        done
+        bun_version_file=""
+        if [ -f bun.lock ] && jq -e '(.packageManager // "") | startswith("bun@")' package.json >/dev/null 2>&1; then
+          bun_version_file="$WORKING_DIRECTORY/package.json"
+        fi
+        if [ -z "$CACHE_PATHS" ]; then CACHE_PATHS="$WORKING_DIRECTORY/.artifacts"; fi
+        lock_hash=$(find . -path ./node_modules -prune -o \( -name package-lock.json -o -name bun.lock -o -name pnpm-lock.yaml -o -name go.sum -o -name Cargo.lock \) -print \
+          | grep -v /node_modules/ | sort | xargs cat 2>/dev/null | sha256sum | cut -c1-16)
+        expected="Install,Build,Lint"
+        if [ -n "$DOCKERFILE" ] && [ -f "$DOCKERFILE" ]; then expected="$expected,Dockerfile"; else DOCKERFILE=""; fi
+        expected="$expected,Test,Mutation"
+        playwright=""
+        if [ "$BROWSERS" = "true" ]; then
+          # invariant: a caller's toolchain decides which lockfile exists, so each is tried in turn,
+          # and a bun or pnpm repository caches the right browser build too.
+          if [ -f package-lock.json ]; then
+            playwright=$(node -p "require('./package-lock.json').packages['node_modules/playwright']?.version || ''")
+          fi
+          if [ -z "$playwright" ] && [ -f bun.lock ]; then
+            playwright=$(grep -oE '"playwright@[^"]+"' bun.lock | head -1 | sed -E 's/"playwright@([^"]+)"/\1/')
+          fi
+          if [ -z "$playwright" ] && [ -f pnpm-lock.yaml ]; then
+            playwright=$(grep -oE '/?playwright@[0-9][^:[:space:]]*' pnpm-lock.yaml | head -1 | sed -E 's#.*playwright@##')
+          fi
+          if [ -z "$playwright" ]; then
+            echo "::error::browsers: true but no lockfile (package-lock.json, bun.lock, pnpm-lock.yaml) names a playwright version"
+            exit 1
+          fi
+        fi
+        {
+          echo "lock=$lock"
+          echo "bun-version-file=$bun_version_file"
+          echo "lock-hash=$lock_hash"
+          echo "dockerfile=$DOCKERFILE"
+          echo "expected=$expected"
+          echo "playwright=$playwright"
+          echo "cache-paths<<PATHS"
+          echo "$CACHE_PATHS"
+          echo "PATHS"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Set up Node.js
+      if: inputs.node-version != ''
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: ${{ inputs.node-version }}
+        # outside: setup-node's npm cache fails a repository with no package-lock.json.
+        cache: ${{ steps.prepare.outputs.lock == 'package-lock.json' && 'npm' || '' }}
+        cache-dependency-path: ${{ steps.prepare.outputs.lock == 'package-lock.json' && format('{0}/package-lock.json', inputs.working-directory) || '' }}
+
+    - name: Set up Bun
+      if: steps.prepare.outputs.bun-version-file != ''
+      uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      with:
+        bun-version-file: ${{ steps.prepare.outputs.bun-version-file }}
+
+    # outside: Bun runs `node-gyp rebuild` for a native package that ships a binding.gyp
+    # (better-sqlite3), prebuilds or not; the x64 runner image carried node-gyp, the Arm one does
+    # not (2026-10-26).
+    - name: Install node-gyp
+      if: steps.prepare.outputs.lock == 'bun.lock'
+      shell: bash
+      run: npm install --global --silent node-gyp@13.1.0
+
+    - name: Set up Go
+      if: inputs.go-version != ''
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: false
+
+    # invariant: every run saves under its own run_id, so the fallbacks are what restores: this
+    # branch's newest run, then any branch's on the same lockfiles (main, in practice), then any.
+    - name: Restore build artifacts
+      id: restore
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.prepare.outputs.cache-paths }}
+        key: artifacts-${{ runner.os }}-${{ runner.arch }}-${{ steps.prepare.outputs.lock-hash }}-${{ github.ref_name }}
+        restore-keys: |
+          artifacts-${{ runner.os }}-${{ runner.arch }}-${{ steps.prepare.outputs.lock-hash }}-${{ github.ref_name }}-
+          artifacts-${{ runner.os }}-${{ runner.arch }}-${{ steps.prepare.outputs.lock-hash }}-
+          artifacts-${{ runner.os }}-${{ runner.arch }}-
+
+    - name: Cache Playwright browsers
+      if: inputs.browsers == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.prepare.outputs.playwright }}
+
+    - name: Install
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        LOCK: ${{ steps.prepare.outputs.lock }}
+      run: |
+        if [ "$LOCK" = "none" ] && ! grep -qE '^node_modules(/\.install)?:' Makefile 2>/dev/null; then
+          exec "$GITHUB_ACTION_PATH/../../scripts/gate.sh" --off Install "no lockfile"
+        fi
+        exec "$GITHUB_ACTION_PATH/../../scripts/gate.sh" Install "$GITHUB_ACTION_PATH/../../scripts/install.sh"
+
+    # outside: a fresh runner lacks some of chromium's packages (xvfb, fonts, nss), and an apt
+    # mirror sometimes stalls for 5-10 minutes mid-download, so each attempt is bounded at 2
+    # minutes and retried; it runs as root so that `timeout` kills apt along with npx, and a kill
+    # during unpacking is finished by `dpkg --configure -a` before the next attempt.
+    - name: Install Playwright browsers
+      if: inputs.browsers == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        npx playwright install chromium
+        for attempt in 1 2 3; do
+          if sudo env "PATH=$PATH" timeout -k 10 120 npx playwright install-deps chromium; then
+            exit 0
+          fi
+          echo "::warning::Playwright system dependencies, attempt $attempt of 3, failed or stalled past 2 minutes"
+          sudo dpkg --configure -a
+        done
+        exit 1
+
+    - name: Build
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: exec "$GITHUB_ACTION_PATH/../../scripts/gate.sh" Build make build
+
+    - name: Lint
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: exec "$GITHUB_ACTION_PATH/../../scripts/gate.sh" Lint make lint
+
+    - name: Lint the Dockerfile
+      if: steps.prepare.outputs.dockerfile != ''
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        DOCKERFILE: ${{ steps.prepare.outputs.dockerfile }}
+      run: exec "$GITHUB_ACTION_PATH/../../scripts/gate.sh" Dockerfile "$GITHUB_ACTION_PATH/../../scripts/hadolint.sh" "$DOCKERFILE"
+
+    - name: Test
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: exec "$GITHUB_ACTION_PATH/../../scripts/gate.sh" Test make test
+
+    - name: Mutation
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        MUTATION: ${{ inputs.mutation }}
+        BASE: ${{ github.event.pull_request.base.sha }}
+        BEFORE: ${{ github.event.before }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      run: exec "$GITHUB_ACTION_PATH/../../scripts/mutation.sh"
+
+    # value: always(): a red run still compiled, and the retry that follows is when a warm tree
+    # is worth most. The key carries the run id, since a cache key is immutable once written.
+    - name: Save build artifacts
+      if: always() && steps.restore.outputs.cache-primary-key != ''
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.prepare.outputs.cache-paths }}
+        key: ${{ steps.restore.outputs.cache-primary-key }}-${{ github.run_id }}
+
+    - name: Write the checks report
+      if: always() && steps.prepare.outcome == 'success'
+      shell: bash
+      env:
+        GATES_FILE: ${{ runner.temp }}/studio-check/gates.jsonl
+        EXPECTED_GATES: ${{ steps.prepare.outputs.expected }}
+        REPORT_FILE: ${{ runner.temp }}/studio-check/check.json
+        SUMMARY: ${{ inputs.summary }}
+      run: node "$GITHUB_ACTION_PATH/../../scripts/summary.mjs" check
+
+    - name: Upload the checks report
+      if: always() && steps.prepare.outcome == 'success' && inputs.report != ''
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ${{ inputs.report }}
+        path: ${{ runner.temp }}/studio-check/check.json
+        retention-days: 7

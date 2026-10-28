@@ -1,0 +1,185 @@
+name: Self-test
+
+# invariant: every action here is called by its `./` path, so a change is proven at this commit,
+# before `@main` hands it to every repository. The reusable workflows reach their actions at
+# `@main` and cannot be run this way; what they would run is what these jobs prove.
+on:
+  push:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: self-test-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  docs:
+    name: Docs
+    runs-on: ubuntu-26.04-arm
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+
+      - name: Lint the docs
+        run: make lint
+
+  scripts:
+    name: Scripts
+    runs-on: ubuntu-26.04-arm
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # hazard: the binary, pinned by version and checksum, as every tool these workflows fetch.
+      - name: Lint the workflows
+        env:
+          VERSION: "1.7.12"
+          SHA256: "325e971b6ba9bfa504672e29be93c24981eeb1c07576d730e9f7c8805afff0c6"
+        run: |
+          set -euo pipefail
+          archive="actionlint_${VERSION}_linux_arm64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$archive" "https://github.com/rhysd/actionlint/releases/download/v${VERSION}/${archive}"
+          echo "${SHA256}  $RUNNER_TEMP/$archive" | sha256sum --check --quiet
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -shellcheck= .github/workflows/*.yaml
+          shellcheck -x scripts/*.sh
+
+      - name: Test the scripts
+        run: node --test tests/*.test.mjs
+
+      - name: Plan a fixture manifest
+        id: plan
+        uses: ./actions/plan-deploy
+        with:
+          image-name: signews-api
+          manifest: tests/fixtures/manifests/staging-and-prod.json
+
+      - name: Assert the plan
+        env:
+          DEPLOYMENTS: ${{ steps.plan.outputs.deployments }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          envs=$(jq -r '[.[].env] | join(",")' <<< "$DEPLOYMENTS")
+          echo "planned: $envs"
+          case "$EVENT" in
+            push | workflow_dispatch) test "$envs" = "staging" ;;
+            *) test -n "$DEPLOYMENTS" ;;
+          esac
+
+  check-passing:
+    name: Check · passing fixture
+    runs-on: ubuntu-26.04-arm
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Check
+        uses: ./actions/check
+        with:
+          working-directory: tests/fixtures/projects/passing
+          node-version: ""
+          report: check-passing
+
+      - name: Assert the report
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/studio-check/check.json"
+          jq . "$report"
+          jq -e '[.gates[] | [.name, .outcome]] == [["Install","off"],["Build","success"],["Lint","success"],["Dockerfile","success"],["Test","success"],["Mutation","success"]]' "$report"
+          jq -e '.gates[] | select(.name == "Dockerfile") | .note | test("warning")' "$report"
+
+  check-failing:
+    name: Check · failing fixture
+    runs-on: ubuntu-26.04-arm
+    outputs:
+      outcome: ${{ steps.check.outcome }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check
+        id: check
+        continue-on-error: true
+        uses: ./actions/check
+        with:
+          working-directory: tests/fixtures/projects/failing
+          node-version: ""
+          report: check-failing
+
+      - name: Assert the report
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/studio-check/check.json"
+          jq . "$report"
+          jq -e '[.gates[] | [.name, .outcome]] == [["Install","off"],["Build","success"],["Lint","failure"],["Test","not run"],["Mutation","not run"]]' "$report"
+
+  # invariant: the failing fixture must fail: its job stays green through continue-on-error, so
+  # this job reads the outcome its Check step really had.
+  expect-failure:
+    name: Expect the failing fixture to fail
+    needs: [check-passing, check-failing]
+    runs-on: ubuntu-26.04-arm
+    steps:
+      - name: Assert the outcomes
+        env:
+          PASSING: ${{ needs.check-passing.result }}
+          FAILING: ${{ needs.check-failing.outputs.outcome }}
+        run: |
+          echo "passing fixture: $PASSING, failing fixture's Check: $FAILING"
+          test "$PASSING" = success && test "$FAILING" = failure
+
+  scan:
+    name: Scan · known-vulnerable image
+    runs-on: ubuntu-26.04-arm
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # value: lodash 4.17.11 alone, on scratch: CVE-2019-10744 is critical with a fix in 4.17.12,
+      # and nothing else in the image can move under the assertion.
+      - name: Build the vulnerable image
+        run: docker build -t studio-actions-vulnerable:test tests/fixtures/vulnerable-image
+
+      - name: Scan, reporting
+        id: report
+        uses: ./actions/scan-image
+        with:
+          image: studio-actions-vulnerable:test
+          tag: sha-fixture
+          enforce: "false"
+
+      - name: Scan, enforcing
+        id: enforce
+        continue-on-error: true
+        uses: ./actions/scan-image
+        with:
+          image: studio-actions-vulnerable:test
+          tag: sha-fixture
+          enforce: "true"
+          summary: "false"
+
+      - name: Assert the outcomes
+        env:
+          FIXABLE: ${{ steps.report.outputs.fixable-critical }}
+          REPORTED: ${{ steps.report.outcome }}
+          ENFORCED: ${{ steps.enforce.outcome }}
+        run: |
+          set -euo pipefail
+          jq . "$RUNNER_TEMP/studio-report/scan-fixture.json"
+          echo "fixable criticals: $FIXABLE; report-only scan: $REPORTED; enforced scan: $ENFORCED"
+          test "$FIXABLE" -ge 1
+          test "$REPORTED" = success
+          test "$ENFORCED" = failure
+          jq -e '.findings[] | select(.id == "CVE-2019-10744" and .fixed == "4.17.12")' "$RUNNER_TEMP/studio-report/scan-fixture.json"

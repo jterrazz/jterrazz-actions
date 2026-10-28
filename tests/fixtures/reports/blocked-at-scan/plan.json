@@ -1,0 +1,14 @@
+{
+    "image": "signews-api",
+    "manifest": ".infrastructure/application.yaml",
+    "event": "push",
+    "ref": "refs/heads/main",
+    "refName": "main",
+    "sha": "a0636b8f0e2d4c7a9b1c3d5e7f9a1b3c5d7e9f10",
+    "newestTag": { "name": "v1.7.2", "sha": "647e1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b" },
+    "startedAt": "2026-10-28T22:16:10.000Z",
+    "builds": [{ "sha": "a0636b8f0e2d4c7a9b1c3d5e7f9a1b3c5d7e9f10", "short": "a0636b8", "tag": "sha-a0636b8", "ref": "a0636b8f0e2d4c7a9b1c3d5e7f9a1b3c5d7e9f10" }],
+    "deployments": [{ "env": "staging", "sha": "a0636b8f0e2d4c7a9b1c3d5e7f9a1b3c5d7e9f10", "short": "a0636b8", "tag": "sha-a0636b8", "alias": "latest", "ref": "a0636b8f0e2d4c7a9b1c3d5e7f9a1b3c5d7e9f10" }],
+    "untouched": [{ "env": "prod", "deploy": "release" }],
+    "environments": [{ "env": "staging", "deploy": "push" }, { "env": "prod", "deploy": "release" }]
+}

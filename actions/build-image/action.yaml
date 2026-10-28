@@ -1,0 +1,117 @@
+name: Build image
+description: Build the image with Buildx and push it as sha-<commit>, an immutable tag; report its digest, size and base
+
+inputs:
+  registry:
+    description: Container registry hostname
+    default: "registry.internal.jterrazz.com"
+  image-name:
+    description: Image name (without registry prefix)
+    required: true
+  sha:
+    description: The commit the image is built from; the tag is sha-<its first 7 characters>
+    default: ${{ github.sha }}
+  alias:
+    description: The alias this build will move once deployed (latest, or a v* tag), read for the size it replaces
+    default: "latest"
+  context:
+    description: Docker build context path
+    default: "."
+  dockerfile:
+    description: Path to Dockerfile
+    default: "Dockerfile"
+  build-args:
+    description: Docker build arguments
+    default: ""
+  report:
+    description: Name of the artifact the build report is uploaded as (empty uploads none)
+    default: ""
+
+outputs:
+  tag:
+    description: The immutable tag pushed, sha-<7>
+    value: ${{ steps.tag.outputs.tag }}
+  digest:
+    description: The digest the tag points at
+    value: ${{ steps.push.outputs.digest }}
+  image:
+    description: The image by digest (registry/name@sha256:…)
+    value: ${{ inputs.registry }}/${{ inputs.image-name }}@${{ steps.push.outputs.digest }}
+
+runs:
+  using: composite
+  steps:
+    - name: Name the tag
+      id: tag
+      shell: bash
+      env:
+        SHA: ${{ inputs.sha }}
+      run: |
+        echo "tag=sha-${SHA:0:7}" >> "$GITHUB_OUTPUT"
+        echo "created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+    # outside: network=host makes the buildkit container share the runner's network namespace,
+    # Tailscale interface included. On Docker's default bridge the push NXDOMAINs: the registry's
+    # public CNAME points into the private *.ts.net zone only MagicDNS answers.
+    - name: Set up Buildx
+      uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      with:
+        driver-opts: network=host
+
+    # value: no layer cache: consecutive releases rarely share a lockfile, so the dependency layer
+    # almost never hits, while exporting it costs about a minute. No QEMU: the runner is arm64
+    # like the image.
+    - name: Build and push
+      id: push
+      uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+      with:
+        context: ${{ inputs.context }}
+        file: ${{ inputs.dockerfile }}
+        push: true
+        platforms: linux/arm64
+        tags: ${{ inputs.registry }}/${{ inputs.image-name }}:${{ steps.tag.outputs.tag }}
+        build-args: ${{ inputs.build-args }}
+        labels: |
+          org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          org.opencontainers.image.revision=${{ inputs.sha }}
+          org.opencontainers.image.created=${{ steps.tag.outputs.created }}
+
+    - name: Describe the image
+      shell: bash
+      env:
+        REGISTRY: ${{ inputs.registry }}
+        IMAGE: ${{ inputs.image-name }}
+        TAG: ${{ steps.tag.outputs.tag }}
+        DIGEST: ${{ steps.push.outputs.digest }}
+        ALIAS: ${{ inputs.alias }}
+        SHA: ${{ inputs.sha }}
+        DOCKERFILE: ${{ inputs.dockerfile }}
+      run: |
+        set -euo pipefail
+        # invariant: the size is the arm64 image's compressed layers, what a node pulls.
+        size_of() {
+          local raw
+          raw=$(docker buildx imagetools inspect "$1" --raw 2>/dev/null) || { echo null; return; }
+          if jq -e '.manifests' >/dev/null <<< "$raw"; then
+            local child
+            child=$(jq -r '[.manifests[] | select(.platform.architecture == "arm64")][0].digest' <<< "$raw")
+            raw=$(docker buildx imagetools inspect "$REGISTRY/$IMAGE@$child" --raw)
+          fi
+          jq '[.layers[].size] | add' <<< "$raw"
+        }
+        size=$(size_of "$REGISTRY/$IMAGE@$DIGEST")
+        previous=$(size_of "$REGISTRY/$IMAGE:$ALIAS")
+        base=$(grep -iE '^FROM ' "$DOCKERFILE" | tail -1 | awk '{print $2}' || true)
+        mkdir -p "$RUNNER_TEMP/studio-report"
+        jq -n --arg tag "$TAG" --arg sha "$SHA" --arg image "$REGISTRY/$IMAGE" --arg digest "$DIGEST" \
+          --argjson size "$size" --argjson previous "$previous" --arg base "$base" \
+          '{tag: $tag, sha: $sha, image: $image, digest: $digest, size: $size, previousSize: $previous, base: $base}' \
+          | tee "$RUNNER_TEMP/studio-report/build-${SHA:0:7}.json"
+
+    - name: Upload the build report
+      if: inputs.report != ''
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ${{ inputs.report }}
+        path: ${{ runner.temp }}/studio-report/build-*.json
+        retention-days: 7

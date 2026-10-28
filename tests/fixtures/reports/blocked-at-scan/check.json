@@ -1,0 +1,1 @@
+{ "gates": [{ "name": "Install", "outcome": "success", "seconds": 9 }, { "name": "Build", "outcome": "success", "seconds": 17 }, { "name": "Lint", "outcome": "success", "seconds": 4 }, { "name": "Test", "outcome": "success", "seconds": 12 }] }

@@ -1,0 +1,9 @@
+{
+    "tag": "sha-a0636b8",
+    "sha": "a0636b8f0e2d4c7a9b1c3d5e7f9a1b3c5d7e9f10",
+    "image": "registry.internal.jterrazz.com/signews-api",
+    "digest": "sha256:4e84aa11bb22cc33dd44ee55ff66778899aabbccddeeff00112233445566770b",
+    "size": 96000000,
+    "previousSize": 278000000,
+    "base": "node:24-alpine"
+}

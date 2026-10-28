@@ -1,0 +1,59 @@
+name: Plan deploy
+description: Read the app's manifest and the event, and list the builds and deployments this run makes
+
+inputs:
+  image-name:
+    description: Image name (without registry prefix)
+    required: true
+  manifest:
+    description: Path to the app's manifest
+    default: ".infrastructure/application.yaml"
+  report:
+    description: Name of the artifact the plan is uploaded as (empty uploads none)
+    default: ""
+
+outputs:
+  builds:
+    description: JSON array of {sha, short, tag, ref}, one per image to build
+    value: ${{ steps.plan.outputs.builds }}
+  deployments:
+    description: JSON array of {env, sha, short, tag, alias, ref}, one per environment to deploy
+    value: ${{ steps.plan.outputs.deployments }}
+
+runs:
+  using: composite
+  steps:
+    - name: Plan
+      id: plan
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image-name }}
+        MANIFEST: ${{ inputs.manifest }}
+        EVENT: ${{ github.event_name }}
+        REF: ${{ github.ref }}
+        REF_NAME: ${{ github.ref_name }}
+        SHA: ${{ github.sha }}
+      run: |
+        set -euo pipefail
+        mkdir -p "$RUNNER_TEMP/studio-report"
+        export MANIFEST_JSON="$RUNNER_TEMP/manifest.json" PLAN_FILE="$RUNNER_TEMP/studio-report/plan.json"
+        yq -o json '.' "$MANIFEST" > "$MANIFEST_JSON"
+        # invariant: the newest `v*` tag, which a schedule rebuilds for the `release` environments
+        # and the summary names as what they run; its commit is the peeled tag's.
+        NEWEST_TAG=$(git ls-remote --tags --refs origin 'refs/tags/v*' | sed 's#.*refs/tags/##' | sort -V | tail -n 1)
+        NEWEST_TAG_SHA=""
+        if [ -n "$NEWEST_TAG" ]; then
+          NEWEST_TAG_SHA=$(git ls-remote origin "refs/tags/$NEWEST_TAG^{}" | cut -f1)
+          if [ -z "$NEWEST_TAG_SHA" ]; then NEWEST_TAG_SHA=$(git ls-remote origin "refs/tags/$NEWEST_TAG" | cut -f1); fi
+        fi
+        COMMIT_MESSAGE=$(git log -1 --format=%s 2>/dev/null || true)
+        export NEWEST_TAG NEWEST_TAG_SHA COMMIT_MESSAGE
+        node "$GITHUB_ACTION_PATH/../../scripts/plan.mjs"
+
+    - name: Upload the plan
+      if: inputs.report != ''
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ${{ inputs.report }}
+        path: ${{ runner.temp }}/studio-report/plan.json
+        retention-days: 7

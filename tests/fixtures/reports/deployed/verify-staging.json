@@ -1,0 +1,8 @@
+{
+    "env": "staging",
+    "namespace": "signews-api-staging",
+    "ready": "1/1",
+    "outcome": "success",
+    "promoted": "latest",
+    "probes": [{ "url": "https://staging.api.signews.internal.jterrazz.com/health", "path": "/health", "method": "GET", "expect": [200], "status": 200, "ok": true }]
+}

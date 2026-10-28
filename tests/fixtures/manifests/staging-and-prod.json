@@ -1,0 +1,7 @@
+{
+    "metadata": { "name": "signews-api" },
+    "environments": {
+        "staging": { "deploy": "push" },
+        "prod": { "deploy": "release" }
+    }
+}
