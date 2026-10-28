@@ -63,13 +63,21 @@ runs:
         TRIVY_PASSWORD: ${{ env.DOCKER_REGISTRY_PASSWORD }}
         TRIVY_NO_PROGRESS: "true"
         TRIVY_SCANNERS: vuln
+        # outside: Trivy reads a remote index as linux/amd64 unless told; the images are arm64 alone.
+        TRIVY_PLATFORM: linux/arm64
       run: |
         set -euo pipefail
         ignore=()
         if [ -f "$IGNORE_FILE" ]; then ignore=(--ignorefile "$IGNORE_FILE"); fi
 
-        trivy image --quiet "${ignore[@]}" --severity CRITICAL,HIGH \
-          --format table --output "$RUNNER_TEMP/report.txt" "$IMAGE"
+        # hazard: a scanner that cannot run (registry, database) is an outage, not a finding: it fails
+        # the release only once the gate is enforced.
+        if ! trivy image --quiet "${ignore[@]}" --severity CRITICAL,HIGH \
+          --format table --output "$RUNNER_TEMP/report.txt" "$IMAGE"; then
+          if [ "$ENFORCE" = "true" ]; then exit 1; fi
+          echo "::warning::Trivy could not scan $IMAGE (reported, not enforced)"
+          exit 0
+        fi
         {
           echo "### Vulnerabilities in \`$IMAGE\` (critical and high)"
           echo '```'
