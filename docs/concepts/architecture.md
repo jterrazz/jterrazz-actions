@@ -92,8 +92,9 @@ tags. Its inputs beyond `image-name` (required) are `node-version`, `browsers`,
 takes no secret: the calling job grants `id-token: write`, and every
 connection is made with that OIDC token ([secrets.md](../reference/secrets.md)).
 
-Which environments a run deploys is resolved from the manifest's
-`environments` block, each entry's `deploy:`:
+A `Plan` job reads the manifest's `environments` block, each entry's
+`deploy:`, and lists the builds the run makes; `Release <tag>` then runs once
+per build, in parallel:
 
 - **`deploy: push`**: deployed by every push to `main`, with the `latest` it
   just built. A `schedule`, the daily rebuild that takes the base image's
@@ -103,6 +104,11 @@ Which environments a run deploys is resolved from the manifest's
   pushed as that tag. A push never touches it, so an app ships to it with
   `git tag vX.Y.Z && git push --tags` or `gh release create vX.Y.Z`; only such
   an app's caller triggers on `tags: ['v*']`.
+- **The daily `schedule` builds both**: `main`'s HEAD as `latest` for the
+  `push` environments, and the newest `v*` tag, rebuilt on the patched base
+  and pushed again as that tag, for the `release` ones. So a `release`
+  environment takes the base image's patches though nobody tags. A build that
+  would deploy nowhere (no `release` environment, no tag yet) is not planned.
 - **Either way the image is deployed by digest**, resolved from the tag the run
   just pushed. A `workflow_dispatch` resolves by the ref it is run on. An
   environment naming neither value fails the run before anything deploys.

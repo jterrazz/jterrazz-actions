@@ -50,69 +50,34 @@ jobs:
       # build, lint and test before the base image moves.
       mutation: ${{ inputs.mutation && github.event_name != 'schedule' }}
 
-  release:
-    name: Release
-    needs: validate
-    # invariant: the images are linux/arm64 (the node is Apple silicon), built natively; GitHub has
-    # no -latest label for Arm, so this names the newest Arm image.
+  # invariant: one build per image a run must refresh. A push to main builds `latest` for the `push`
+  # environments; a `v*` tag builds that tag for the `release` environments; the daily schedule
+  # does both, rebuilding main's HEAD and the newest `v*` tag on the base image's patches, so a
+  # `release` environment never stays on a stale base because nobody tagged. Each build carries
+  # the deployments it serves, and a build that would deploy nowhere is not planned.
+  plan:
+    name: Plan
     runs-on: ubuntu-26.04-arm
-    # invariant: id-token is how docker-deploy authenticates to the cluster (GitHub
-    # OIDC, no stored kubeconfig). A reusable workflow can only narrow what its
-    # caller grants, so every calling job must grant `id-token: write` too.
     permissions:
       contents: read
-      id-token: write
+    outputs:
+      builds: ${{ steps.plan.outputs.builds }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Connect to infrastructure
-        uses: jterrazz/studio-actions/actions/infra-connect@main
-
-      # invariant: a `v*` tag is a release, built and pushed as `:<tag>`; anything else (a push to main,
-      # the daily schedule, a dispatch on main) is a push, built as `:latest`. Either way docker-deploy
-      # resolves the tag just pushed to its digest and deploys that.
-      - name: Determine image tag
-        id: image
-        env:
-          REF: ${{ github.ref }}
-          REF_NAME: ${{ github.ref_name }}
-        run: |
-          if [[ "$REF" == refs/tags/v* ]]; then
-            echo "tag=$REF_NAME" >> "$GITHUB_OUTPUT"
-            echo "trigger=release" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=latest" >> "$GITHUB_OUTPUT"
-            echo "trigger=push" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Build and push image
-        uses: jterrazz/studio-actions/actions/docker-build@main
-        with:
-          image-name: ${{ inputs.image-name }}
-          tag: ${{ steps.image.outputs.tag }}
-          dockerfile: ${{ inputs.dockerfile }}
-
-      # invariant: scanned after the push and before any deploy: a blocked image sits in the
-      # registry, deployed nowhere.
-      - name: Scan image
-        uses: jterrazz/studio-actions/actions/image-scan@main
-        with:
-          image: ${{ env.REGISTRY }}/${{ inputs.image-name }}:${{ steps.image.outputs.tag }}
-
-      - name: Resolve deployments
-        id: deployments
+      - name: Plan the builds
+        id: plan
         env:
           MANIFEST: ${{ inputs.manifest }}
-          TRIGGER: ${{ steps.image.outputs.trigger }}
-          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
         # invariant: `deploy` names what deploys an environment: `push` every push to main, `release`
-        # a `v*` tag, with the image built for that tag. A schedule (the daily rebuild that takes the
-        # base image's patches) runs on the default branch's HEAD, so it is a push here: it rebuilds
-        # `latest` and deploys the `push` environments, never a `release` one. A shared app
-        # (`scope: shared`) carries one root `deploy` and deploys as the one environment `shared`
-        # (studio-infrastructure ADR-029).
-        # hazard: an environment naming neither value fails the run, before anything deploys: a
+        # a `v*` tag. A shared app (`scope: shared`) carries one root `deploy` and deploys as the one
+        # environment `shared` (studio-infrastructure ADR-029).
+        # hazard: an environment naming neither value fails the run, before anything builds: a
         # default would deploy where nobody asked, or leave an environment silently stale.
         run: |
           set -euo pipefail
@@ -128,15 +93,75 @@ jobs:
             echo "::error file=$MANIFEST::$UNNAMED: each environment names \`deploy: push\` or \`deploy: release\`"
             exit 1
           fi
-          DEPLOYMENTS=$(echo "$ENVS_JSON" | jq -c --arg when "$TRIGGER" --arg tag "$IMAGE_TAG" \
-            '[to_entries[] | select(.value.deploy == $when) | {"env": .key, "image_tag": $tag}]')
-          echo "list=$DEPLOYMENTS" >> "$GITHUB_OUTPUT"
+
+          # build <git ref> <image tag> <deploy value>: one entry, with the environments it deploys.
+          build() {
+            echo "$ENVS_JSON" | jq -c --arg ref "$1" --arg tag "$2" --arg when "$3" \
+              '{ref: $ref, tag: $tag, deployments: [to_entries[] | select(.value.deploy == $when) | {env: .key, image_tag: $tag}]}'
+          }
+          BUILDS=()
+          if [[ "$REF" == refs/tags/v* ]]; then
+            BUILDS+=("$(build "$REF" "$REF_NAME" release)")
+          else
+            BUILDS+=("$(build "$SHA" latest push)")
+          fi
+          if [ "$EVENT" = "schedule" ]; then
+            LAST=$(git ls-remote --tags --refs origin 'refs/tags/v*' | sed 's#.*refs/tags/##' | sort -V | tail -n 1)
+            if [ -n "$LAST" ]; then
+              BUILDS+=("$(build "refs/tags/$LAST" "$LAST" release)")
+            fi
+          fi
+          printf '%s\n' "${BUILDS[@]}" | jq -sc '[.[] | select(.deployments | length > 0)]' > builds.json
+          echo "builds=$(cat builds.json)" >> "$GITHUB_OUTPUT"
+          jq -r '.[] | "- `\(.tag)` from `\(.ref)` → \([.deployments[].env] | join(", "))"' builds.json
+
+  release:
+    name: Release ${{ matrix.build.tag }}
+    needs: [validate, plan]
+    if: needs.plan.outputs.builds != '[]'
+    # invariant: the images are linux/arm64 (the node is Apple silicon), built natively; GitHub has
+    # no -latest label for Arm, so this names the newest Arm image.
+    runs-on: ubuntu-26.04-arm
+    # invariant: id-token is how docker-deploy authenticates to the cluster (GitHub
+    # OIDC, no stored kubeconfig). A reusable workflow can only narrow what its
+    # caller grants, so every calling job must grant `id-token: write` too.
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        build: ${{ fromJSON(needs.plan.outputs.builds) }}
+    steps:
+      # value: a scheduled rebuild of the newest `v*` tag checks that tag out; Validate proved main's
+      # HEAD, and the tag's own run proved the tag when it was cut.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ matrix.build.ref }}
+
+      - name: Connect to infrastructure
+        uses: jterrazz/studio-actions/actions/infra-connect@main
+
+      - name: Build and push image
+        uses: jterrazz/studio-actions/actions/docker-build@main
+        with:
+          image-name: ${{ inputs.image-name }}
+          tag: ${{ matrix.build.tag }}
+          dockerfile: ${{ inputs.dockerfile }}
+
+      # invariant: scanned after the push and before any deploy: a blocked image sits in the
+      # registry, deployed nowhere.
+      - name: Scan image
+        uses: jterrazz/studio-actions/actions/image-scan@main
+        with:
+          image: ${{ env.REGISTRY }}/${{ inputs.image-name }}:${{ matrix.build.tag }}
 
       - name: Deploy
         uses: jterrazz/studio-actions/actions/docker-deploy@main
         with:
           image-name: ${{ inputs.image-name }}
-          deployments: ${{ steps.deployments.outputs.list }}
+          deployments: ${{ toJSON(matrix.build.deployments) }}
           manifest: ${{ inputs.manifest }}
           timeout: ${{ inputs.timeout }}
 
