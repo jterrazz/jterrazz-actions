@@ -70,15 +70,18 @@ function gateResult(gate) {
     }
 }
 
-function probeText(probe) {
+function probeText(probe, named) {
     const expected = probe.ok ? '' : ` (expected ${probe.expect.join(' or ')})`;
-    return `${probe.path} ${probe.status || 'no answer'}${expected}`;
+    const where = named ? `${new URL(probe.url).host}${probe.path}` : probe.path;
+    return `${where} ${probe.status || 'no answer'}${expected}`;
 }
 
 function deploymentState(deployment, deploy, verify, needs) {
     if (verify) {
         if (verify.superseded) return '⚠️ superseded by a newer deploy';
-        const parts = [`ready ${verify.ready ?? '?'}`, ...(verify.probes ?? []).map(probeText)];
+        const probes = verify.probes ?? [];
+        const named = new Set(probes.map((probe) => new URL(probe.url).host)).size > 1;
+        const parts = [`ready ${verify.ready ?? '?'}`, ...probes.map((probe) => probeText(probe, named))];
         return `${verify.outcome === 'success' ? '' : '❌ '}${parts.join(' · ')}`;
     }
     if (deploy) return deploy.outcome === 'success' ? 'rolled out · not verified' : '❌ rollout failed, rolled back';

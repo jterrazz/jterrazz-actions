@@ -103,3 +103,14 @@ test('the check report keeps the gates in order and marks those never reached', 
     ]);
     assert.match(renderCheck(check), /^## ❌ Check failed at Build\n\n\| Pass \| Result \| Duration \|/);
 });
+
+test('an environment serving several hosts names each host it probed', () => {
+    const several = reports('deployed');
+    several.verifies = [{ ...several.verifies[0], probes: [
+        { url: 'https://www.jterrazz.com/', path: '/', expect: [200], status: 200, ok: true },
+        { url: 'https://jterrazz.com/', path: '/', expect: [301], status: 301, ok: true },
+    ] }];
+    const markdown = render(several, allSucceeded, context);
+
+    assert.match(markdown, /ready 1\/1 · www\.jterrazz\.com\/ 200 · jterrazz\.com\/ 301 \|/);
+});
