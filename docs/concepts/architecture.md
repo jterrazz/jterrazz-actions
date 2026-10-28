@@ -177,15 +177,18 @@ Steady-state upgrades finish in seconds, so the higher default costs nothing.
 A **critical** vulnerability **with a published fix** fails the release: the
 image stays in the registry, deployed nowhere, until a rebuild or a bump
 clears it. A critical with no fix, and everything rated high, is reported in
-the run's summary and blocks nothing, since no rebuild could clear it. An
-exception lives in the repository's `.trivyignore.yaml`, one entry per CVE
+the run's summary and blocks nothing, since no rebuild could clear it.
+
+An exception lives in the repository's `.trivyignore.yaml`, one entry per CVE
 with a `statement` and an `expired_at`, so it is reviewed like code and lapses
-on its own. Trivy is installed as a binary pinned by version and checksum,
-not through `aquasecurity/trivy-action`, whose tags were rewritten in March
-2026; its database is cached one entry per day. The gate ships report-only (`enforce: "false"`):
-on 2026-10-28 three production images carried criticals, all in the lint
-toolchain's Go binaries that npm installs as production through optional
-peers; it is enforced once those images are clean.
+on its own. Trivy is a binary pinned by version and checksum, not
+`aquasecurity/trivy-action`, whose tags were rewritten in March 2026; its
+database is cached one entry per day.
+
+The gate ships report-only (`enforce: "false"`): on 2026-10-28 three
+production images carried criticals, all in the lint toolchain's Go binaries
+that npm installs as production through optional peers. It is enforced once
+those images are clean.
 
 **docker-cleanup.** Deletes old `v*` registry tags beyond the newest
 `keep-latest-versions` (default `3`), over the registry's HTTP API with a netrc file rather
