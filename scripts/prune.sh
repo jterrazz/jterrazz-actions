@@ -46,4 +46,4 @@ while read -r tag; do
   echo "Deleted $tag ($d)"
   deleted=$((deleted + 1))
 done <<< "$tags"
-echo "Pruned $deleted tags; kept $(grep -c . <<< "$keep") ($(tr '\n' ' ' <<< "$keep"))"
+echo "Pruned $deleted tags; kept $(grep . <<< "$keep" | paste -sd ' ' -)"

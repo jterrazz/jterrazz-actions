@@ -113,7 +113,7 @@ function environmentsSection(reports, needs) {
 
 function checksSection(check) {
     if (!check?.gates?.length) return '';
-    const rows = check.gates.map((gate) => [gate.name, gateResult(gate), gate.outcome === 'success' && gate.cached ? 'cached' : gate.seconds === undefined ? '—' : formatDuration(gate.seconds)]);
+    const rows = check.gates.map((gate) => [gate.name, gateResult(gate), gate.outcome === 'success' && gate.cached ? 'cached' : gate.seconds === undefined || gate.outcome === 'off' ? '—' : formatDuration(gate.seconds)]);
     return `### Checks\n\n${table(['Pass', 'Result', 'Duration'], rows)}`;
 }
 
