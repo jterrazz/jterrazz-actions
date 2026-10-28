@@ -51,7 +51,7 @@ jobs:
           echo "${SHA256}  $RUNNER_TEMP/$archive" | sha256sum --check --quiet
           tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
           "$RUNNER_TEMP/actionlint" -shellcheck= .github/workflows/*.yaml
-          shellcheck -x scripts/*.sh
+          shellcheck -x -P SCRIPTDIR scripts/*.sh
 
       - name: Test the scripts
         run: node --test tests/*.test.mjs

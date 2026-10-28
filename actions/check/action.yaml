@@ -66,7 +66,7 @@ runs:
         fi
         if [ -z "$CACHE_PATHS" ]; then CACHE_PATHS="$WORKING_DIRECTORY/.artifacts"; fi
         lock_hash=$(find . -path ./node_modules -prune -o \( -name package-lock.json -o -name bun.lock -o -name pnpm-lock.yaml -o -name go.sum -o -name Cargo.lock \) -print \
-          | grep -v /node_modules/ | sort | xargs cat 2>/dev/null | sha256sum | cut -c1-16)
+          | { grep -v /node_modules/ || true; } | sort | xargs cat 2>/dev/null | sha256sum | cut -c1-16)
         expected="Install,Build,Lint"
         if [ -n "$DOCKERFILE" ] && [ -f "$DOCKERFILE" ]; then expected="$expected,Dockerfile"; else DOCKERFILE=""; fi
         expected="$expected,Test,Mutation"
