@@ -28,10 +28,10 @@ inputs:
   # rather than one widened to every ref.
   tailscale-release-client-id:
     description: Client ID of the Tailscale trust credential for v* tags (not a secret)
-    default: ""
+    default: "TV53vwCkzz11CNTRL-kEPhPSv9Sk11CNTRL"
   tailscale-release-audience:
     description: Audience of the Tailscale trust credential for v* tags (not a secret)
-    default: ""
+    default: "api.tailscale.com/TV53vwCkzz11CNTRL-kEPhPSv9Sk11CNTRL"
 
 runs:
   using: composite
