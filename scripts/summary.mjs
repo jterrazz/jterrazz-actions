@@ -170,9 +170,11 @@ function blockedDetail(stage, reports) {
     const { check, scans, deploys, verifies, plan } = reports;
     switch (stage.id) {
         case 'plan':
-            return `The manifest (\`${plan?.manifest ?? '.infrastructure/application.yaml'}\`) could not be planned: an environment names neither \`deploy: push\` nor \`deploy: release\`. The Plan job's annotation names it.`;
+            // value: the plan fails on an environment naming no `deploy` value, but also on a manifest
+            // that is missing or not YAML; the Plan job's error names which.
+            return `The manifest (\`${plan?.manifest ?? '.infrastructure/application.yaml'}\`) could not be planned, so nothing was built: the Plan job's error names why (an environment naming neither \`deploy: push\` nor \`deploy: release\`, or a manifest missing or unreadable).`;
         case 'check': {
-            const failed = (check?.gates ?? []).filter((g) => g.outcome === 'failure').map((g) => g.name);
+            const failed = (check?.gates ?? []).filter((g) => g.outcome === 'failure').map((g) => (g.note ? `${g.name} (${g.note})` : g.name));
             return `${failed.length ? `**${failed.join(', ')}** failed` : 'The checks failed'}: nothing was deployed. The Check job's log, and the annotations on the changed lines, hold the findings.`;
         }
         case 'build':

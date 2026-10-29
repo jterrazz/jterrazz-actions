@@ -93,3 +93,10 @@ test('an environment naming neither deploy value fails the plan, naming each one
         /^Error: prod, preview: each environment names `deploy: push` or `deploy: release`$/,
     );
 });
+
+test('a dispatch on a branch deploys the push environments from that branch, never a release one', () => {
+    const result = plan({ manifest: manifest('staging-and-prod'), event: 'workflow_dispatch', ref: 'refs/heads/fix/probe', refName: 'fix/probe', sha: SHA, newestTag: { name: 'v1.7.2', sha: TAG_SHA } });
+
+    assert.deepEqual(result.deployments.map((d) => [d.env, d.tag, d.alias]), [['staging', 'sha-a0636b8', 'latest']]);
+    assert.deepEqual(result.untouched, [{ env: 'prod', deploy: 'release' }]);
+});

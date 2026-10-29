@@ -66,14 +66,16 @@ jobs:
       - name: Assert the plan
         env:
           DEPLOYMENTS: ${{ steps.plan.outputs.deployments }}
-          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
         run: |
           set -euo pipefail
           envs=$(jq -r '[.[].env] | join(",")' <<< "$DEPLOYMENTS")
           echo "planned: $envs"
-          case "$EVENT" in
-            push | workflow_dispatch) test "$envs" = "staging" ;;
-            *) test -n "$DEPLOYMENTS" ;;
+          # value: a `v*` tag deploys the release environment; every other event here (a push to a
+          # branch, a pull request's merge ref, a dispatch) deploys the push one.
+          case "$REF" in
+            refs/tags/v*) test "$envs" = "prod" ;;
+            *) test "$envs" = "staging" ;;
           esac
 
   check-passing:
@@ -124,6 +126,7 @@ jobs:
           report="$RUNNER_TEMP/studio-check/check.json"
           jq . "$report"
           jq -e '[.gates[] | [.name, .outcome]] == [["Install","off"],["Build","success"],["Lint","failure"],["Test","not run"],["Mutation","not run"]]' "$report"
+          jq -e '.gates[] | select(.name == "Lint") | .note == "types, lint"' "$report"
 
   # invariant: the failing fixture must fail: its job stays green through continue-on-error, so
   # this job reads the outcome its Check step really had.

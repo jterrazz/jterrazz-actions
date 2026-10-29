@@ -12,7 +12,7 @@ is the change itself, not `main`'s copy.
 | Docs                             | `make lint`: the manual's layout, prose and links, every comment's kind, the names and the secrets             |
 | Scripts                          | actionlint over the workflows, shellcheck over `scripts/`, the unit tests, and `plan-deploy` on a fixture manifest |
 | Check · passing fixture          | `actions/check` on `tests/fixtures/projects/passing`: every pass recorded green, hadolint's warning as a note, mutation run |
-| Check · failing fixture          | the same action on a project whose lint fails: the report names Lint failed and the passes after it not run    |
+| Check · failing fixture          | the same action on a project whose lint fails: the report names Lint failed, with the passes the toolchain's verdict line lists, and the passes after it not run |
 | Expect the failing fixture to fail | the failing fixture's Check step really failed, read from its outcome, while its job stays green            |
 | Scan · known-vulnerable image    | `scan-image` on an image holding lodash 4.17.11 (a critical with a fix): reporting warns and passes, enforcing fails |
 
@@ -21,11 +21,13 @@ cover the two scripts whose output is a decision:
 
 - **The plan**, over the manifests in `tests/fixtures/manifests/`: a push, a
   `v*` tag, the daily schedule (both builds, and one when `main` is the newest
-  tag), a tag with no release environment, a shared app, and an environment
-  naming neither `deploy` value.
+  tag), a tag with no release environment, a dispatch on a branch, a shared
+  app, and an environment naming neither `deploy` value.
 - **The summary**, over the reports in `tests/fixtures/reports/`: a deployed
-  run (title, commit line, environments, checks, image, release hint) and runs
-  blocked at Check and at Scan, plus the checks report the action writes.
+  run (title, commit line, environments, checks, image, release hint), a run
+  blocked at each stage (Plan with no report at all, Check naming what failed
+  inside the pass, Build, Scan, Deploy, Verify naming the probe), a cancelled
+  run, a superseded Verify, plus the checks report the action writes.
 
 Run them on a laptop with `make test`; `make lint` needs
 Node alone.
