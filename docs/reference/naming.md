@@ -18,7 +18,7 @@ wherever it comes from.
 A caller's job id is the prefix GitHub writes before every job of the shared
 workflow it calls, which is why it is one short word: `deploy` gives
 "Deploy / Build · sha-a0636b8", where a nested call once gave
-"build-and-deploy / Validate / Validate".
+"deploy / Check / Check".
 
 Names, steps and summaries are in English, like the code and GitHub's own
 interface.

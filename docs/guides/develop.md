@@ -21,7 +21,7 @@ rules the layout holds to, and what has to move in step.
 ## The rules the layout holds to
 
 - **No reusable workflow calls another.** A nested call names its jobs by its
-  call path ("build-and-deploy / Validate / Validate") and pins the inner
+  call path ("deploy / Check / Check") and pins the inner
   workflow at `@main` whatever ref the outer one runs at. What every family
   shares is a composite action.
 - **An action calls no other action of this repository.** A nested
