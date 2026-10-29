@@ -15,7 +15,7 @@ same name in every repository.
 | ------- | ------------- | ------------------------------------------------- | ------------------------------------------------------ |
 | Check   | `check.yaml`  | a pull request; a push to `main` for a library    | `check.yaml`                                           |
 | Deploy  | `deploy.yaml` | a push to `main`, a `v*` tag, the daily rebuild   | `deploy-docker.yaml`                                   |
-| Publish | `publish.yaml`| a GitHub Release (npm) or a `v*` tag (Go)         | `publish-npm.yaml`, `publish-go.yaml`                  |
+| Publish | `publish.yaml`, `release.yaml` for an npm package | a GitHub Release (npm) or a `v*` tag (Go) | `publish-npm.yaml`, `publish-go.yaml`                  |
 | Watch   | `watch.yaml`  | a schedule                                        | none: a probe is the repository's own                  |
 
 A Docker app has no Check on a push to `main`: its push is its release, and

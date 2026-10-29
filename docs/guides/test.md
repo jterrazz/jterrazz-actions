@@ -27,7 +27,7 @@ cover the two scripts whose output is a decision:
   run (title, commit line, environments, checks, image, release hint) and runs
   blocked at Check and at Scan, plus the checks report the action writes.
 
-Run them on a laptop with `node --test tests/*.test.mjs`; `make lint` needs
+Run them on a laptop with `make test`; `make lint` needs
 Node alone.
 
 ## What Self-test cannot prove

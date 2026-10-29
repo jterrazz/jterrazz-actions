@@ -32,6 +32,13 @@ jobs:
 That installs, then runs `make build`, `make lint` and `make test` (and
 `make mutation` over the change) on every push and pull request.
 
+## Working on it
+
+`make lint` checks the manual, the comments and the names; `make test` runs
+the unit tests of the plan and the summary (Node alone, nothing to install).
+Self-test proves the actions on fixtures at the change's own commit
+([test](docs/guides/test.md)).
+
 ## Documentation
 
 [docs/README.md](docs/README.md) is the map. Start at
