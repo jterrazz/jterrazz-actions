@@ -109,6 +109,18 @@ runs:
         cache: ${{ steps.prepare.outputs.lock == 'package-lock.json' && 'npm' || '' }}
         cache-dependency-path: ${{ steps.prepare.outputs.lock == 'package-lock.json' && format('{0}/package-lock.json', inputs.working-directory) || '' }}
 
+    # outside: setup-node registers problem matchers (tsc, eslint) that read the raw compiler
+    # output @jterrazz/typescript (12.2+) keeps folded under ::stop-commands::, which a matcher
+    # still reads: every type error was annotated twice, and GitHub keeps 10 per step (2026-10-29).
+    # The toolchain's own ::error lines are the annotations.
+    - name: Drop setup-node's problem matchers
+      if: inputs.node-version != ''
+      shell: bash
+      run: |
+        echo "::remove-matcher owner=tsc::"
+        echo "::remove-matcher owner=eslint-stylish::"
+        echo "::remove-matcher owner=eslint-compact::"
+
     - name: Set up Bun
       if: steps.prepare.outputs.bun-version-file != ''
       uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0

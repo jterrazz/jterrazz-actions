@@ -53,6 +53,14 @@ twice; any other project installs from its lockfile (`npm ci`,
 `bun install --frozen-lockfile`). npm's audit and funding notes are silenced
 for the whole job: the image scan and Renovate's security lane own that.
 
+What a red check shows:
+
+- **Annotations** are the toolchain's own: `@jterrazz/typescript` 12.2 and
+  later writes an `::error` on each finding's file and line, so setup-node's
+  problem matchers are dropped and no finding is annotated twice.
+- **The checks table** names what failed inside a pass: the toolchain's
+  failed passes (`Lint ✗ failed · types`), or Vitest's count of failed tests.
+
 **Mutation** measures the lines a push or a pull request changed, since the
 commit the event started from, which is why the caller checks the whole
 history out only when mutation runs. A change to Markdown or the root

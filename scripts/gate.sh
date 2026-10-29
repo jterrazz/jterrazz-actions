@@ -31,6 +31,23 @@ cached=false
 # outside: @jterrazz/typescript says "nothing ran" when it proves a gate from the tree's cached verdict.
 if [ "$status" -eq 0 ] && grep -q 'nothing ran' "$log"; then cached=true; fi
 outcome=success
-if [ "$status" -ne 0 ]; then outcome=failure; fi
-record "$name" "$outcome" "$seconds" "$cached" "$(cat "$GATE_NOTE_FILE")"
+note=$(cat "$GATE_NOTE_FILE")
+if [ "$status" -ne 0 ]; then
+  outcome=failure
+  # value: a failed gate names what failed, so the checks table answers without the log: the
+  # passes @jterrazz/typescript's verdict line lists ("✗ 15 passes, 1 failed: types"), or
+  # Vitest's count of failed tests. Nothing recognised leaves the note empty.
+  if [ -z "$note" ]; then
+    plain=$(sed 's/\x1b\[[0-9;]*m//g' "$log")
+    passes=$(grep -oE '[0-9]+ failed: .+$' <<< "$plain" | tail -n 1 | sed -E 's/^[0-9]+ failed: //')
+    tests=$(grep -oE '^ +Tests +[0-9]+ failed' <<< "$plain" | tail -n 1 | grep -oE '[0-9]+' || true)
+    if [ -n "$passes" ]; then
+      note="$passes"
+    elif [ -n "$tests" ]; then
+      note="$tests failed test"
+      if [ "$tests" -ne 1 ]; then note="${note}s"; fi
+    fi
+  fi
+fi
+record "$name" "$outcome" "$seconds" "$cached" "$note"
 exit "$status"
