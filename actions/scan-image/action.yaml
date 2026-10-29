@@ -10,9 +10,9 @@ inputs:
     default: ""
   enforce:
     description: Fail on a fixable critical ("true"), or report it as a warning alone ("false")
-    # hazard: report-only until the production images stop shipping the lint and test toolchains
-    # (ls-lint and oxlint's Go binaries carry the criticals found on 2026-10-28); flip it then.
-    default: "false"
+    # value: enforced since 2026-10-29, when every app's latest image scanned clean; "false" is
+    # for the self-test and a deliberate, temporary exception, never a standing default.
+    default: "true"
   ignore-file:
     description: The repository's exceptions, each with a statement and an expiry (Trivy's .trivyignore.yaml)
     default: ".trivyignore.yaml"

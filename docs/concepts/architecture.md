@@ -128,17 +128,18 @@ pin the format.
 
 ### The scan
 
-A **critical** vulnerability **with a published fix** blocks the deploy,
-once the gate is enforced; a critical with no fix and everything rated high
+A **critical** vulnerability **with a published fix** blocks the deploy; a
+critical with no fix and everything rated high
 is reported only, since no rebuild could clear it. An exception lives in the
 repository's `.trivyignore.yaml`, one entry per CVE with a `statement` and an
 `expired_at`. Trivy and hadolint are binaries pinned by version and checksum,
 not marketplace actions whose tags can be rewritten.
 
-The gate ships report-only (`enforce: "false"`): on 2026-10-28 three
-production images carried criticals, all in Go binaries of the lint
-toolchain that npm installs as production dependencies. It is enforced once
-the images are clean.
+The gate is enforced since 2026-10-29. It shipped report-only the day
+before, when three production images carried criticals, all in the lint
+toolchain's Go binaries that npm kept as production dependencies through
+optional peers; `@jterrazz/typescript` 12.1.0, `@jterrazz/intelligence` 9.0.1
+and `@jterrazz/manifest` 0.6.0 took them out.
 
 ## The Publish
 
