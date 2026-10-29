@@ -29,10 +29,15 @@ A cache key is immutable once written, and a buildinfo changes with every
 commit, so one entry per run is what keeps the cache tracking HEAD rather
 than freezing at a branch's first green.
 
-Restoring is therefore all prefix match, in three widening steps: the same
-branch's most recent run, then the same lockfile on any branch, then the OS
-and architecture alone. That is how a fresh branch, and a `v*` tag, start from the tree `main`
-last left.
+Restoring is therefore all prefix match, in two widening steps: the same
+branch's most recent run, then the same lockfile on any branch. That is how
+a fresh branch, and a `v*` tag, start from the tree `main` last left.
+
+It never widens past the lockfile. Tool state built against other
+dependencies is not inert: Vite's optimised dependencies, restored across a
+lockfile change, re-optimise in the middle of a browser run and fail tests
+that import them. A changed lockfile therefore starts cold, once, and its
+run seeds the entries every later run restores.
 
 Restore and save are separate steps so the save can run on `always()`: a red
 run still compiled, and its retry is what most wants a warm tree. It needs no

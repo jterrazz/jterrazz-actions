@@ -52,15 +52,15 @@ runs:
         path: ${{ inputs.path }}
         # invariant: every run saves under its own run_id, so the fallbacks are
         # what actually restores: this branch's most recent run first, then
-        # any branch's on the same lockfile (main, in practice), then any
-        # lockfile's. A repo that writes nothing under .artifacts simply
-        # misses, and a stale restore on such a repo is inert: no target
-        # reads it.
+        # any branch's on the same lockfile (main, in practice). Never another
+        # lockfile's: tool state built against other dependencies is not
+        # inert (Vite's optimised deps, restored across a lockfile change,
+        # re-optimise mid-run and fail browser tests), so a new lockfile
+        # starts cold, once.
         key: artifacts-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-${{ github.ref_name }}
         restore-keys: |
           artifacts-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-${{ github.ref_name }}-
           artifacts-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/package-lock.json', '**/bun.lock', '**/pnpm-lock.yaml', '**/go.sum', '**/Cargo.lock') }}-
-          artifacts-${{ runner.os }}-${{ runner.arch }}-
 
     - name: Save
       if: inputs.phase == 'save' && steps.phase.outputs.skip != 'true'
