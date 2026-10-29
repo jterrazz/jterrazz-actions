@@ -130,7 +130,8 @@ where, or blocked at which stage), the commit line, one row per environment
 image (size against the one it replaces, base, findings, exceptions) and the
 Trivy report, folded. When a `release` environment stayed behind, it says
 which tag ships the commit. A failure names the stage that blocked and what
-to do: the fixable CVEs for a scan, the failed passes for a check.
+to do: the fixable CVEs for a scan, the failed passes for a check; a stage
+that failed beside it (Build, beside a red Check) is named too.
 [`scripts/summary.mjs`](../../scripts/summary.mjs) is the renderer; its tests
 pin the format.
 

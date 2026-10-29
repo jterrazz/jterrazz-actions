@@ -226,7 +226,13 @@ export function render(reports, needs, context = {}) {
         .join(' · ');
 
     const sections = [`## ${title}`, commit];
-    if (stage) sections.push(blockedDetail(stage, reports));
+    if (stage) {
+        sections.push(blockedDetail(stage, reports));
+        // value: Check and Build run side by side, so a run can fail twice; the second failure,
+        // often the more telling one (an identity refused, a Dockerfile broken), is named too.
+        const others = STAGES.filter(([id]) => id !== stage.id && ['failure', 'cancelled'].includes(needs?.[id]?.result)).map(([, label]) => label);
+        if (others.length) sections.push(`${others.join(' and ')} also did not succeed: ${others.length === 1 ? "its job's log holds" : "their jobs' logs hold"} why.`);
+    }
     if (!stage && envs.length === 0 && plan) {
         sections.push(`No environment of \`${plan.manifest}\` deploys on a ${trigger} of \`${plan.refName}\`.`);
     }

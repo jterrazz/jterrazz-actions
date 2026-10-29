@@ -54,6 +54,7 @@ test('a run blocked at Scan names the stage and the fixable critical, and offers
     const markdown = render(reports('blocked-at-scan'), needs, context);
 
     assert.equal(markdown.split('\n')[0], '## ❌ Deploy blocked at Scan');
+    assert.doesNotMatch(markdown, /also did not succeed/);
     assert.match(markdown, /\| CVE-2026-1234 \| undici \| 6\.21\.0 \| 6\.21\.2 \|/);
     assert.doesNotMatch(markdown, /\| CVE \|[^\n]*\n[^\n]*\n\| CVE-2026-2222/);
     assert.match(markdown, /\| staging \| `sha-a0636b8` \| `sha256:4e84…0b` \| — \| — not deployed \|/);
@@ -180,4 +181,12 @@ test('a cancelled run says where it stopped, and a superseded verify says so', (
 
     assert.equal(cancelled.split('\n')[0], '## ⚠️ Deploy cancelled at Deploy');
     assert.match(markdown, /\| staging \| `sha-a0636b8` \| [^|]+ \| [^|]+ \| ⚠️ superseded by a newer deploy \|/);
+});
+
+test('a run that failed at two stages names the second too', () => {
+    const needs = { ...allSucceeded, check: { result: 'failure' }, build: { result: 'failure' }, scan: { result: 'skipped' }, deploy: { result: 'skipped' }, verify: { result: 'skipped' } };
+    const markdown = render({ ...reports('deployed'), builds: [], scans: [], deploys: [], verifies: [] }, needs, context);
+
+    assert.equal(markdown.split('\n')[0], '## ❌ Deploy blocked at Check');
+    assert.match(markdown, /^Build also did not succeed: its job's log holds why\.$/m);
 });
