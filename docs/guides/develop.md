@@ -42,10 +42,6 @@ rules the layout holds to, and what has to move in step.
 
 ## What moves in step
 
-- `validate.yaml` and `release-npm.yaml` are copies of `check.yaml` and
-  `publish-npm.yaml` under their old names, kept only while
-  `package-typescript` calls them; a change to one is made to its copy, and
-  both are deleted once that repository moves.
 - `CLAUDE.md`'s routing table, `skills/studio-workflows/SKILL.md`'s and
   `docs/README.md`'s map name the same pages; a page renamed in one is
   renamed in the other two.
