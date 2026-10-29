@@ -21,7 +21,8 @@ cover the two scripts whose output is a decision:
 
 - **The plan**, over the manifests in `tests/fixtures/manifests/`: a push, a
   `v*` tag, the daily schedule (both builds, and one when `main` is the newest
-  tag), a tag with no release environment, a dispatch on a branch, a shared
+  tag), a tag with no release environment, a dispatch on a branch (nothing
+  deploys) and on a default branch not named `main`, a shared
   app, and an environment naming neither `deploy` value.
 - **The summary**, over the reports in `tests/fixtures/reports/`: a deployed
   run (title, commit line, environments, checks, image, release hint), a run

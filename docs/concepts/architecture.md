@@ -88,8 +88,10 @@ Plan ─┬─ Check ───────────────────�
   `deploy: release` (a `v*` tag). The daily schedule rebuilds both: `main`'s
   HEAD for the `push` environments and the newest `v*` tag for the `release`
   ones, so a release environment takes its base image's patches though nobody
-  tags. A shared app (`scope: shared`) deploys as the one environment
-  `shared`. An environment naming neither value fails the run here.
+  tags. Any other ref, a dispatch on a branch, deploys nothing: the cluster
+  admits CI from `main` and `v*` tags alone. A shared app (`scope: shared`)
+  deploys as the one environment `shared`. An environment naming neither
+  value fails the run here.
 - **Check** runs `actions/check` beside the build: the image builds while the
   tests run, and deploys only if both pass.
 - **Build** pushes the image as `sha-<7>`, the commit it was built from, with

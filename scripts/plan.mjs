@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // invariant: what a Deploy run builds and where it deploys, decided from the app's manifest and
-// the event alone, before anything builds. `deploy: push` environments take every push to main
-// (and a dispatch on a branch); `deploy: release` environments take a `v*` tag. The daily schedule
+// the event alone, before anything builds. `deploy: push` environments take the default branch
+// (a push, a dispatch, a schedule); `deploy: release` environments take a `v*` tag. Any other ref
+// deploys nothing: the cluster admits CI only from the default branch and `v*` tags. The daily schedule
 // does both: main's HEAD for the `push` environments, and the newest `v*` tag rebuilt on the
 // patched base for the `release` ones. A shared app (`scope: shared`) carries one root `deploy`
 // and deploys as the one environment `shared` (studio-infrastructure ADR-029).
@@ -23,7 +24,7 @@ export function environmentsOf(manifest) {
 }
 
 /** Resolve the builds and deployments of one run. Throws on an environment naming neither value. */
-export function plan({ manifest, event, ref, refName, sha, newestTag }) {
+export function plan({ manifest, event, ref, refName, sha, newestTag, defaultBranch = 'main' }) {
     const environments = environmentsOf(manifest);
     const unnamed = environments.filter(([, deploy]) => !DEPLOY_VALUES.includes(deploy)).map(([name]) => name);
     if (unnamed.length > 0) {
@@ -33,7 +34,7 @@ export function plan({ manifest, event, ref, refName, sha, newestTag }) {
     const sources = [];
     if (ref.startsWith('refs/tags/v')) {
         sources.push({ when: 'release', ref, sha, alias: refName });
-    } else {
+    } else if (ref === `refs/heads/${defaultBranch}`) {
         sources.push({ when: 'push', ref: sha, sha, alias: 'latest' });
     }
     if (event === 'schedule' && newestTag?.name && newestTag?.sha) {
@@ -69,7 +70,7 @@ function main() {
     const newestTag = env.NEWEST_TAG ? { name: env.NEWEST_TAG, sha: env.NEWEST_TAG_SHA } : null;
     let result;
     try {
-        result = plan({ manifest, event: env.EVENT, ref: env.REF, refName: env.REF_NAME, sha: env.SHA, newestTag });
+        result = plan({ manifest, event: env.EVENT, ref: env.REF, refName: env.REF_NAME, sha: env.SHA, newestTag, defaultBranch: env.DEFAULT_BRANCH || 'main' });
     } catch (error) {
         console.log(`::error file=${env.MANIFEST}::${error.message}`);
         process.exit(1);

@@ -94,9 +94,16 @@ test('an environment naming neither deploy value fails the plan, naming each one
     );
 });
 
-test('a dispatch on a branch deploys the push environments from that branch, never a release one', () => {
+test('a dispatch on a branch deploys nothing and builds nothing: the cluster admits CI from the default branch and v* tags alone', () => {
     const result = plan({ manifest: manifest('staging-and-prod'), event: 'workflow_dispatch', ref: 'refs/heads/fix/probe', refName: 'fix/probe', sha: SHA, newestTag: { name: 'v1.7.2', sha: TAG_SHA } });
 
+    assert.deepEqual(result.builds, []);
+    assert.deepEqual(result.deployments, []);
+    assert.deepEqual(result.untouched, [{ env: 'staging', deploy: 'push' }, { env: 'prod', deploy: 'release' }]);
+});
+
+test('a dispatch on the default branch deploys the push environments, whatever the branch is called', () => {
+    const result = plan({ manifest: manifest('staging-and-prod'), event: 'workflow_dispatch', ref: 'refs/heads/trunk', refName: 'trunk', sha: SHA, newestTag: null, defaultBranch: 'trunk' });
+
     assert.deepEqual(result.deployments.map((d) => [d.env, d.tag, d.alias]), [['staging', 'sha-a0636b8', 'latest']]);
-    assert.deepEqual(result.untouched, [{ env: 'prod', deploy: 'release' }]);
 });
