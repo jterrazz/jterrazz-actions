@@ -9,7 +9,7 @@ inputs:
     description: The paths to cache, one per line
     default: ".artifacts"
   key:
-    description: The key the restore phase output, required by the save phase
+    description: The key the restore phase output, for the save phase (empty saves nothing, with a notice)
     default: ""
 
 outputs:
@@ -21,6 +21,7 @@ runs:
   using: composite
   steps:
     - name: Check the phase
+      id: phase
       shell: bash
       env:
         PHASE: ${{ inputs.phase }}
@@ -29,9 +30,12 @@ runs:
         case "$PHASE" in
           restore) ;;
           save)
+            # value: a save runs `if: always()`, and an empty key means the restore never ran,
+            # because a step before it failed: there is nothing to save, and a second red error
+            # would only bury the first one.
             if [ -z "$KEY" ]; then
-              echo "::error::phase save needs the key the restore phase output" >&2
-              exit 1
+              echo "::notice::nothing to save: the restore phase did not run"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
             fi
             ;;
           *)
@@ -59,7 +63,7 @@ runs:
           artifacts-${{ runner.os }}-${{ runner.arch }}-
 
     - name: Save
-      if: inputs.phase == 'save'
+      if: inputs.phase == 'save' && steps.phase.outputs.skip != 'true'
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ inputs.path }}

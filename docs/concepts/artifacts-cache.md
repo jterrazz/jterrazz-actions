@@ -36,7 +36,10 @@ last left.
 
 Restore and save are separate steps so the save can run on `always()`: a red
 run still compiled, and its retry is what most wants a warm tree. It needs no
-cache-hit guard, since a key carrying the run id is new by construction.
+cache-hit guard, since a key carrying the run id is new by construction. A
+run that failed before its restore hands the save no key: the save notes
+that nothing was restored and saves nothing, rather than adding a second
+error under the first.
 
 The cost is one entry per run against the repository's 10 GB budget, which
 GitHub evicts LRU, so the oldest runs fall off on their own, and what
