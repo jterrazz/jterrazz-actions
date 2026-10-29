@@ -14,7 +14,7 @@ is the change itself, not `main`'s copy.
 | Check · passing fixture          | `actions/check` on `tests/fixtures/projects/passing`: every pass recorded green, hadolint's warning as a note, mutation run |
 | Check · failing fixture          | the same action on a project whose lint fails: the report names Lint failed, with the passes the toolchain's verdict line lists, and the passes after it not run |
 | Expect the failing fixture to fail | the failing fixture's Check step really failed, read from its outcome, while its job stays green            |
-| Scan · known-vulnerable image    | `scan-image` on an image holding lodash 4.17.11 (a critical with a fix): reporting warns and passes, enforcing fails |
+| Scan · known-vulnerable image    | `scan-image` on an image holding lodash 4.17.11 (a critical with a fix): reporting warns and passes, enforcing fails, a `.trivyignore.yaml` exception lets it through |
 
 The unit tests (`node --test tests/*.test.mjs`, no dependency to install)
 cover the two scripts whose output is a decision:

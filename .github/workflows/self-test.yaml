@@ -173,8 +173,21 @@ jobs:
           enforce: "true"
           summary: "false"
 
+      - name: Scan, with an exception
+        id: excepted
+        continue-on-error: true
+        uses: ./actions/scan-image
+        with:
+          image: studio-actions-vulnerable:test
+          tag: sha-excepted
+          enforce: "true"
+          ignore-file: tests/fixtures/vulnerable-image/.trivyignore.yaml
+          summary: "false"
+
       - name: Assert the outcomes
         env:
+          EXCEPTED: ${{ steps.excepted.outcome }}
+          EXCEPTED_FIXABLE: ${{ steps.excepted.outputs.fixable-critical }}
           FIXABLE: ${{ steps.report.outputs.fixable-critical }}
           REPORTED: ${{ steps.report.outcome }}
           ENFORCED: ${{ steps.enforce.outcome }}
@@ -186,3 +199,6 @@ jobs:
           test "$REPORTED" = success
           test "$ENFORCED" = failure
           jq -e '.findings[] | select(.id == "CVE-2019-10744" and .fixed == "4.17.12")' "$RUNNER_TEMP/studio-report/scan-fixture.json"
+          echo "with the exception: $EXCEPTED, $EXCEPTED_FIXABLE fixable criticals"
+          test "$EXCEPTED" = success && test "$EXCEPTED_FIXABLE" -eq 0
+          jq -e '.exceptions == 1 and ([.findings[] | select(.id == "CVE-2019-10744")] | length) == 0' "$RUNNER_TEMP/studio-report/scan-excepted.json"

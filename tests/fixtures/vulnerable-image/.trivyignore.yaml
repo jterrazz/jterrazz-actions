@@ -1,0 +1,6 @@
+# value: the exception a repository records for a CVE it has reviewed, which Self-test proves
+# lets an enforcing scan through and is counted in the report.
+vulnerabilities:
+  - id: CVE-2019-10744
+    statement: Self-test fixture, the exception path of the gate
+    expired_at: 2099-01-01
