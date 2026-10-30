@@ -98,6 +98,8 @@ Plan ─┬─ Check ───────────────────�
   tests run, and deploys only if both pass.
 - **Build** pushes the image as `sha-<7>`, the commit it was built from, with
   its OCI labels, and records its digest, size and base.
+  Its layers come from GitHub's cache, one scope per image, so a push that
+  keeps the lockfile skips both `npm ci` layers.
 - **Scan** reads that image with Trivy before anything deploys it.
 - **Deploy · \<env\>** rolls it out with `helm upgrade --install`, by digest,
   one job per environment.

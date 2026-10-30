@@ -58,9 +58,11 @@ runs:
       with:
         driver-opts: network=host
 
-    # value: no layer cache: consecutive releases rarely share a lockfile, so the dependency layer
-    # almost never hits, while exporting it costs about a minute. No QEMU: the runner is arm64
-    # like the image.
+    # value: GitHub's cache holds the layers, every stage's (mode=max), one scope per image: most
+    # pushes keep the lockfile, so the two `npm ci` layers, about 75 of a build's 115 seconds,
+    # hit. A Dockerfile here fetches nothing beyond its base and its lockfile, so a cached layer is
+    # what a cold build would make; a new base digest misses every layer after it. An unreachable
+    # cache costs a cold build, never a failed one. No QEMU: the runner is arm64 like the image.
     - name: Build and push
       id: push
       # value: the build record and its summary cost about 40 seconds a build in the post step,
@@ -74,6 +76,8 @@ runs:
         file: ${{ inputs.dockerfile }}
         push: true
         platforms: linux/arm64
+        cache-from: type=gha,scope=${{ inputs.image-name }}
+        cache-to: type=gha,scope=${{ inputs.image-name }},mode=max,ignore-error=true
         tags: ${{ inputs.registry }}/${{ inputs.image-name }}:${{ steps.tag.outputs.tag }}
         build-args: ${{ inputs.build-args }}
         labels: |

@@ -22,6 +22,11 @@ must ship what the commit says and not what a cache remembers. So does
 `node_modules/`, which is the package manager's concern and is already
 handled by `setup-node`'s `cache: npm`.
 
+A Docker image's layers are a cache of their own, which Build keeps in
+GitHub's cache under the image's name
+([`actions/build-image`](../../actions/build-image)); both draw on the
+repository's 10 GB.
+
 Every run saves under `artifacts-<os>-<arch>-<lockfile hash>-<ref name>-<run id>`,
 the hash covering the lockfile of every toolchain the estate uses
 (`package-lock.json`, `bun.lock`, `pnpm-lock.yaml`, `go.sum`, `Cargo.lock`).
