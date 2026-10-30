@@ -63,6 +63,11 @@ runs:
     # like the image.
     - name: Build and push
       id: push
+      # value: the build record and its summary cost about 40 seconds a build in the post step,
+      # for a page no one reads: the Deploy's own summary names the image.
+      env:
+        DOCKER_BUILD_SUMMARY: "false"
+        DOCKER_BUILD_RECORD_UPLOAD: "false"
       uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
       with:
         context: ${{ inputs.context }}

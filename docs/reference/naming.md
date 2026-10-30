@@ -7,7 +7,7 @@ wherever it comes from.
 | ---------------- | ----------------------------------------------------------------- | ------------------------------------------------ |
 | Workflow file    | kebab-case, `.yaml` only, the workflow's name                     | `check.yaml`, `deploy.yaml`                      |
 | Workflow         | one capitalised word: the intent                                  | Check, Deploy, Publish, Watch                    |
-| Run title        | `run-name`: subject, target, trigger                              | Deploy main · daily rebuild                      |
+| Run title        | `run-name`: subject, target, trigger                              | Deploy main · weekly rebuild                      |
 | Job              | a short name, its target after `·`, never the technical id        | Plan, Check, Build · sha-a0636b8, Deploy · prod  |
 | Job id           | short, the displayed name in lowercase                            | `deploy` shows as Deploy / Plan                  |
 | Step             | imperative verb and object, sentence case, four words at most     | Check out, Build image, Roll out                 |

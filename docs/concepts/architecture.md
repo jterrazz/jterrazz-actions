@@ -14,7 +14,7 @@ same name in every repository.
 | Family  | Caller file   | Runs on                                           | Shared workflow                                        |
 | ------- | ------------- | ------------------------------------------------- | ------------------------------------------------------ |
 | Check   | `check.yaml`  | a pull request; a push to `main` for a library    | `check.yaml`                                           |
-| Deploy  | `deploy.yaml` | a push to `main`, a `v*` tag, the daily rebuild   | `deploy-docker.yaml`                                   |
+| Deploy  | `deploy.yaml` | a push to `main`, a `v*` tag, the weekly rebuild  | `deploy-docker.yaml`                                   |
 | Publish | `publish.yaml`, `release.yaml` for an npm package | a GitHub Release (npm) or a `v*` tag (Go) | `publish-npm.yaml`, `publish-go.yaml`                  |
 | Watch   | `watch.yaml`  | a schedule                                        | none: a probe is the repository's own                  |
 
@@ -65,8 +65,10 @@ What a red check shows:
 commit the event started from, which is why the caller checks the whole
 history out only when mutation runs. A change to Markdown or the root
 `docs/` alone gives it nothing to measure, so it is recorded off with why.
-A release, a schedule and a Deploy (unless the app asks with
-`mutation: true`) leave it off: the push that brought the commit measured it.
+A release and a Deploy (unless the app asks with `mutation: true`) leave it
+off: the push that brought the commit measured it. A schedule skips Check
+altogether: it rebuilds a commit a push already checked, and Scan reads the
+new image.
 
 **Concurrency.** A newer Check cancels a pull request's older run, or a
 branch push's. A push to `main` is never cancelled: its mutation range is
@@ -85,7 +87,7 @@ Plan ─┬─ Check ───────────────────�
 
 - **Plan** reads the app's manifest (`.infrastructure/application.yaml`):
   each environment names `deploy: push` (every push to `main`) or
-  `deploy: release` (a `v*` tag). The daily schedule rebuilds both: `main`'s
+  `deploy: release` (a `v*` tag). The weekly schedule rebuilds both: `main`'s
   HEAD for the `push` environments and the newest `v*` tag for the `release`
   ones, so a release environment takes its base image's patches though nobody
   tags. Any other ref, a dispatch on a branch, deploys nothing: the cluster

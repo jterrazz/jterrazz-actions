@@ -17,6 +17,16 @@ test('a deployed run names the app and its environments, then the commit line', 
     assert.equal(lines[2], '`a0636b8` · ci: rebuild daily · 3m 05s · push by jterrazz');
 });
 
+test('a weekly rebuild says why it ran no check, and deploys though Check was skipped', () => {
+    const { check, ...rest } = reports('deployed');
+    const markdown = render(rest, { ...allSucceeded, check: { result: 'skipped' } }, { ...context, event: 'schedule' });
+
+    assert.equal(markdown.split('\n')[0], '## ✅ signews-api deployed to staging');
+    assert.match(markdown, /weekly rebuild by jterrazz/);
+    assert.match(markdown, /Check skipped: a weekly rebuild of commits a push already checked; Scan read the new image\./);
+    assert.doesNotMatch(markdown, /### Checks/);
+});
+
 test('a deployed run tabulates each environment, the untouched release one included', () => {
     const markdown = render(reports('deployed'), allSucceeded, context);
 

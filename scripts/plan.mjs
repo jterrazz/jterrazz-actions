@@ -2,7 +2,7 @@
 // invariant: what a Deploy run builds and where it deploys, decided from the app's manifest and
 // the event alone, before anything builds. `deploy: push` environments take the default branch
 // (a push, a dispatch, a schedule); `deploy: release` environments take a `v*` tag. Any other ref
-// deploys nothing: the cluster admits CI only from the default branch and `v*` tags. The daily schedule
+// deploys nothing: the cluster admits CI only from the default branch and `v*` tags. The weekly schedule
 // does both: main's HEAD for the `push` environments, and the newest `v*` tag rebuilt on the
 // patched base for the `release` ones. A shared app (`scope: shared`) carries one root `deploy`
 // and deploys as the one environment `shared` (studio-infrastructure ADR-029).

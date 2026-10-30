@@ -73,15 +73,15 @@ Deploy checks that commit beside the build.
 ```yaml
 # .github/workflows/deploy.yaml
 name: Deploy
-run-name: Deploy ${{ github.ref_name }} · ${{ github.event_name == 'schedule' && 'daily rebuild' || github.event_name == 'workflow_dispatch' && format('manual run by {0}', github.triggering_actor) || format('push by {0}', github.triggering_actor) }}
+run-name: Deploy ${{ github.ref_name }} · ${{ github.event_name == 'schedule' && 'weekly rebuild' || github.event_name == 'workflow_dispatch' && format('manual run by {0}', github.triggering_actor) || format('push by {0}', github.triggering_actor) }}
 
 on:
     push:
         branches: [main]
         tags: ['v*'] # only when an environment is `deploy: release`
-    # value: the daily rebuild, so an untouched app still takes its base image's patches.
+    # value: the weekly rebuild, so an untouched app still takes its base image's patches.
     schedule:
-        - cron: '0 4 * * *'
+        - cron: '20 4 * * 0'
     workflow_dispatch:
 
 jobs:
@@ -102,9 +102,12 @@ refuses. The app owns `.infrastructure/application.yaml`, with a `deploy:`
 [deploy contract](https://github.com/jterrazz/studio-infrastructure/blob/main/docs/reference/deploy-contract.md).
 Each route's `smoke` block there is what Verify probes after a rollout.
 
-Stagger the schedule's minute across apps. The daily rebuild takes a
-floating base tag's patches (`node:24-alpine`) within a day; an exact one
-moves through the Renovate preset beside the workflows:
+Stagger the schedule's minute across apps. The weekly rebuild takes a
+floating base tag's patches (`node:24-alpine`) within a week, for about
+three runner minutes an app on a private repository's quota; a fix to a
+known vulnerability does not wait for it, since Renovate's security lane
+opens it at once. An exact tag moves through the Renovate preset beside the
+workflows:
 
 ```json
 {

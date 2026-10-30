@@ -20,7 +20,7 @@ The unit tests (`node --test tests/*.test.mjs`, no dependency to install)
 cover the two scripts whose output is a decision:
 
 - **The plan**, over the manifests in `tests/fixtures/manifests/`: a push, a
-  `v*` tag, the daily schedule (both builds, and one when `main` is the newest
+  `v*` tag, the weekly schedule (both builds, and one when `main` is the newest
   tag), a tag with no release environment, a dispatch on a branch (nothing
   deploys) and on a default branch not named `main`, a shared
   app, and an environment naming neither `deploy` value.
@@ -44,7 +44,7 @@ here, and as a whole by a real run:
 2. Run one app's Deploy by hand, `gh workflow run deploy.yaml -R jterrazz/<app>`,
    and read its summary; the job log holds the same Markdown under
    "Summary (Markdown)".
-3. Then let the other apps' next pushes or the daily rebuild take it.
+3. Then let the other apps' next pushes or the weekly rebuild take it.
 
 A change to a shared workflow's own YAML (its jobs, needs, matrix or
 concurrency) is checked by actionlint here and executed only in a caller.

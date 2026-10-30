@@ -25,7 +25,7 @@ test('a v* tag deploys the release environments, aliased as that tag', () => {
     assert.deepEqual(result.untouched, [{ env: 'staging', deploy: 'push' }]);
 });
 
-test('the daily schedule rebuilds main and the newest tag, one build per commit', () => {
+test('the weekly schedule rebuilds main and the newest tag, one build per commit', () => {
     const result = plan({
         manifest: manifest('staging-and-prod'),
         event: 'schedule',

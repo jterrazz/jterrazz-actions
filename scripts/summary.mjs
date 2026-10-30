@@ -17,7 +17,7 @@ const STAGES = [
     ['verify', 'Verify'],
 ];
 
-const TRIGGERS = { push: 'push', schedule: 'daily rebuild', workflow_dispatch: 'manual run', pull_request: 'pull request' };
+const TRIGGERS = { push: 'push', schedule: 'weekly rebuild', workflow_dispatch: 'manual run', pull_request: 'pull request' };
 
 export function formatDuration(seconds) {
     if (seconds === undefined || seconds === null || Number.isNaN(seconds)) return '—';
@@ -232,6 +232,9 @@ export function render(reports, needs, context = {}) {
         // often the more telling one (an identity refused, a Dockerfile broken), is named too.
         const others = STAGES.filter(([id]) => id !== stage.id && ['failure', 'cancelled'].includes(needs?.[id]?.result)).map(([, label]) => label);
         if (others.length) sections.push(`${others.join(' and ')} also did not succeed: ${others.length === 1 ? "its job's log holds" : "their jobs' logs hold"} why.`);
+    }
+    if (needs?.check?.result === 'skipped' && (context.event ?? plan?.event) === 'schedule') {
+        sections.push('Check skipped: a weekly rebuild of commits a push already checked; Scan read the new image.');
     }
     if (!stage && envs.length === 0 && plan) {
         sections.push(`No environment of \`${plan.manifest}\` deploys on a ${trigger} of \`${plan.refName}\`.`);

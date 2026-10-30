@@ -59,8 +59,11 @@ jobs:
           manifest: ${{ inputs.manifest }}
           report: plan
 
+  # value: a schedule rebuilds a commit its push already checked, so it skips Check: the image is
+  # what changed, and Scan reads it.
   check:
     name: Check
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
@@ -68,7 +71,7 @@ jobs:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # value: the whole history only for mutation, which a schedule never runs.
+          # value: the whole history only for mutation.
           fetch-depth: ${{ inputs.mutation && github.event_name == 'push' && '0' || '1' }}
 
       - name: Check
@@ -76,9 +79,7 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
           browsers: ${{ inputs.browsers }}
-          # value: a schedule rebuilds a commit its push already gated, and with no commit to diff
-          # from its mutation would measure everything, cold.
-          mutation: ${{ inputs.mutation && github.event_name != 'schedule' }}
+          mutation: ${{ inputs.mutation }}
           dockerfile: ${{ inputs.dockerfile }}
           summary: false
           report: check
@@ -152,6 +153,8 @@ jobs:
   deploy:
     name: Deploy · ${{ matrix.target.env }}
     needs: [plan, check, scan]
+    # invariant: a skipped Check is a schedule's, never a failed one's.
+    if: ${{ !cancelled() && needs.scan.result == 'success' && (needs.check.result == 'success' || needs.check.result == 'skipped') }}
     runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
